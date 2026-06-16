@@ -34,7 +34,7 @@ def show_dashboard():
 
     st.dataframe(
         products,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "name": "Produkt",

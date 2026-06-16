@@ -46,7 +46,7 @@ def show_entnahme():
 
     st.dataframe(
         pd.DataFrame(history),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "datum": "Datum",
