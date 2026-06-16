@@ -1,25 +1,6 @@
-from pathlib import Path
-
-import pytest
-
 import config
 from database.database import db_connection, init_db
 from database.queries import get_dashboard_summary, get_low_stock_products
-
-
-@pytest.fixture
-def test_database(monkeypatch):
-    db_path = Path("test_lager.db")
-    if db_path.exists():
-        db_path.unlink()
-
-    monkeypatch.setattr(config, "DATA_DIR", Path("."))
-    monkeypatch.setattr(config, "DB_NAME", db_path)
-
-    yield db_path
-
-    if db_path.exists():
-        db_path.unlink()
 
 
 def test_init_db_creates_core_tables(test_database):
