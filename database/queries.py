@@ -51,6 +51,7 @@ def get_low_stock_products(limit=5):
 
 
 def get_inventory_products(only_low_stock=False, limit=0):
+    """Lädt Produkte mit Bestand, Mindestbestand und Lieferantenstatus."""
     where_clause = "WHERE p.bestand < p.mindestbestand" if only_low_stock else ""
     limit_clause = "LIMIT ?" if limit and limit > 0 else ""
     params = (limit,) if limit and limit > 0 else ()
@@ -74,4 +75,21 @@ def get_inventory_products(only_low_stock=False, limit=0):
             ORDER BY status DESC, p.name ASC
             {limit_clause}
         """, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_withdrawal_history(limit=20):
+    """Lädt die letzten Entnahmen für die Entnahme-Ansicht."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                v.datum,
+                p.name AS produkt,
+                v.menge,
+                v.grund
+            FROM verbrauch v
+            JOIN produkte p ON p.id = v.produkt_id
+            ORDER BY v.datum DESC
+            LIMIT ?
+        """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
