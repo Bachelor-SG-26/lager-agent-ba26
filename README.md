@@ -11,7 +11,7 @@ sollen nachvollziehbar vorbereitet und vor der Ausführung bestätigt werden.
 
 ## Funktionsbereiche
 
-- Lagerbestand und Engpaesse anzeigen
+- Lagerbestand und Engpässe anzeigen
 - Entnahmen erfassen
 - Budget und Bestellungen auswerten
 - Lieferanten vergleichen

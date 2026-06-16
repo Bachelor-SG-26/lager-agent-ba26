@@ -1,6 +1,7 @@
 import streamlit as st
 
 from config import APP_PAGES, PROJECT_NAME
+from database.database import init_db
 from views.dashboard import show_dashboard
 from views.placeholder import show_placeholder
 from views.sidebar import render_sidebar
@@ -14,6 +15,10 @@ st.set_page_config(
 
 
 def main():
+    if "_db_initialized" not in st.session_state:
+        init_db()
+        st.session_state._db_initialized = True
+
     if "seite" not in st.session_state:
         st.session_state.seite = APP_PAGES[0]
 
