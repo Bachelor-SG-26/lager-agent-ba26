@@ -1,4 +1,5 @@
 from datetime import datetime
+import sqlite3
 
 from database.database import db_connection
 
@@ -58,4 +59,44 @@ def record_withdrawal(product_id, amount, reason="Produktion"):
         "new_stock": new_stock,
         "minimum_stock": product["mindestbestand"],
         "is_low_stock": new_stock < product["mindestbestand"],
+    }
+
+
+def create_budget(quarter, year, total_budget):
+    """Legt ein neues Quartalsbudget an und verhindert doppelte Einträge."""
+    if quarter not in (1, 2, 3, 4):
+        return {
+            "success": False,
+            "message": "Das Quartal muss zwischen 1 und 4 liegen.",
+        }
+
+    if year < 2000:
+        return {
+            "success": False,
+            "message": "Das Jahr ist ungültig.",
+        }
+
+    if total_budget <= 0:
+        return {
+            "success": False,
+            "message": "Das Budget muss größer als 0 sein.",
+        }
+
+    try:
+        with db_connection(commit=True) as (_, cursor):
+            cursor.execute("""
+                INSERT INTO budget (quartal, jahr, gesamtbudget, verbrauchtes_budget)
+                VALUES (?, ?, ?, 0)
+            """, (quarter, year, total_budget))
+    except sqlite3.IntegrityError:
+        return {
+            "success": False,
+            "message": f"Für Q{quarter}/{year} ist bereits ein Budget vorhanden.",
+        }
+
+    return {
+        "success": True,
+        "quarter": quarter,
+        "year": year,
+        "total_budget": total_budget,
     }

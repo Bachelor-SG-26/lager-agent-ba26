@@ -1,6 +1,6 @@
 import streamlit as st
 
-from database.queries import get_dashboard_summary, get_low_stock_products
+from database.queries import get_current_budget, get_dashboard_summary, get_low_stock_products
 
 
 def _format_currency(value):
@@ -16,6 +16,15 @@ def show_dashboard():
     col_lager.metric("Produkte", summary["products"])
     col_bestellungen.metric("Offene Engpässe", summary["low_stock"])
     col_budget.metric("Freies Budget", _format_currency(summary["free_budget"]))
+
+    budget = get_current_budget()
+    if budget:
+        st.subheader(f"Budget Q{budget['quartal']}/{budget['jahr']}")
+        st.progress(min(budget["verbrauchsquote"], 1.0))
+        st.caption(
+            f"{_format_currency(budget['verbrauchtes_budget'])} von "
+            f"{_format_currency(budget['gesamtbudget'])} verbraucht"
+        )
 
     st.subheader("Kritische Bestände")
     products = get_low_stock_products()

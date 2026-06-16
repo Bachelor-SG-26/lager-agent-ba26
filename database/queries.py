@@ -1,6 +1,35 @@
 from database.database import db_connection
 
 
+def get_current_budget():
+    """Lädt das neueste Quartalsbudget mit Verbrauch und Restbudget."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT id, quartal, jahr, gesamtbudget, verbrauchtes_budget
+            FROM budget
+            ORDER BY jahr DESC, quartal DESC
+            LIMIT 1
+        """)
+        budget = cursor.fetchone()
+
+    if not budget:
+        return None
+
+    total_budget = budget["gesamtbudget"]
+    used_budget = budget["verbrauchtes_budget"]
+    usage_ratio = used_budget / total_budget if total_budget else 0
+
+    return {
+        "id": budget["id"],
+        "quartal": budget["quartal"],
+        "jahr": budget["jahr"],
+        "gesamtbudget": total_budget,
+        "verbrauchtes_budget": used_budget,
+        "freies_budget": total_budget - used_budget,
+        "verbrauchsquote": usage_ratio,
+    }
+
+
 def get_dashboard_summary():
     with db_connection() as (_, cursor):
         cursor.execute("SELECT COUNT(*) AS count FROM produkte")
@@ -13,14 +42,7 @@ def get_dashboard_summary():
         """)
         low_stock = cursor.fetchone()["count"]
 
-        cursor.execute("""
-            SELECT gesamtbudget, verbrauchtes_budget
-            FROM budget
-            ORDER BY jahr DESC, quartal DESC
-            LIMIT 1
-        """)
-        budget = cursor.fetchone()
-
+    budget = get_current_budget()
     total_budget = budget["gesamtbudget"] if budget else 0
     used_budget = budget["verbrauchtes_budget"] if budget else 0
 
