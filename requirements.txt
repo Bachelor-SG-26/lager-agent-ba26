@@ -1,0 +1,12 @@
+langchain
+langchain-community
+langchain-core
+langchain-nvidia-ai-endpoints
+langgraph
+langgraph-prebuilt
+langgraph-checkpoint-sqlite
+python-dotenv
+streamlit
+pandas
+requests
+pytest
