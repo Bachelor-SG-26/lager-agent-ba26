@@ -2,6 +2,7 @@ import streamlit as st
 
 from config import APP_PAGES, PROJECT_NAME
 from database.database import init_db
+from views.bestellungen import show_bestellungen
 from views.dashboard import show_dashboard
 from views.entnahme import show_entnahme
 from views.lager import show_lager
@@ -33,6 +34,8 @@ def main():
         show_lager()
     elif page == "Entnahme":
         show_entnahme()
+    elif page == "Bestellungen":
+        show_bestellungen()
     else:
         show_placeholder(page)
 

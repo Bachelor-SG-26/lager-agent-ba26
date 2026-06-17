@@ -100,3 +100,127 @@ def create_budget(quarter, year, total_budget):
         "year": year,
         "total_budget": total_budget,
     }
+
+
+def create_order(product_id, amount, supplier_id=None):
+    """Legt eine Bestellung an, erhöht den Bestand und belastet das Budget."""
+    if amount <= 0:
+        return {
+            "success": False,
+            "message": "Die Bestellmenge muss größer als 0 sein.",
+        }
+
+    with db_connection(commit=True) as (_, cursor):
+        product, error = _load_order_product(cursor, product_id, supplier_id)
+        if error:
+            return {"success": False, "message": error}
+
+        total_cost = amount * product["price"]
+        budget, error = _load_available_budget(cursor, total_cost)
+        if error:
+            return {"success": False, "message": error}
+
+        order_number = _next_order_number(cursor)
+        date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        cursor.execute("""
+            INSERT INTO bestellungen (
+                bestell_nr, produkt_id, lieferant_id, menge, gesamtkosten, status, datum
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            order_number,
+            product_id,
+            product["supplier_id"],
+            amount,
+            total_cost,
+            "angelegt",
+            date,
+        ))
+        cursor.execute(
+            "UPDATE produkte SET bestand = bestand + ? WHERE id = ?",
+            (amount, product_id),
+        )
+        cursor.execute(
+            "UPDATE budget SET verbrauchtes_budget = verbrauchtes_budget + ? WHERE id = ?",
+            (total_cost, budget["id"]),
+        )
+
+    return {
+        "success": True,
+        "order_number": order_number,
+        "product_name": product["name"],
+        "supplier_name": product["supplier_name"],
+        "amount": amount,
+        "total_cost": total_cost,
+        "new_stock": product["stock"] + amount,
+        "free_budget": budget["free_budget"] - total_cost,
+    }
+
+
+def _load_order_product(cursor, product_id, supplier_id=None):
+    cursor.execute("""
+        SELECT id, name, bestand, standard_lieferant_id
+        FROM produkte
+        WHERE id = ?
+    """, (product_id,))
+    product = cursor.fetchone()
+    if not product:
+        return None, f"Produkt mit ID {product_id} wurde nicht gefunden."
+
+    selected_supplier_id = supplier_id or product["standard_lieferant_id"]
+    if not selected_supplier_id:
+        return None, f"Für {product['name']} ist kein Standardlieferant hinterlegt."
+
+    cursor.execute("""
+        SELECT l.id, l.name, pl.preis
+        FROM produkt_lieferanten pl
+        JOIN lieferanten l ON l.id = pl.lieferant_id
+        WHERE pl.produkt_id = ? AND pl.lieferant_id = ?
+    """, (product_id, selected_supplier_id))
+    supplier = cursor.fetchone()
+    if not supplier:
+        return None, "Der gewählte Lieferant ist für dieses Produkt nicht hinterlegt."
+
+    return {
+        "name": product["name"],
+        "stock": product["bestand"],
+        "supplier_id": supplier["id"],
+        "supplier_name": supplier["name"],
+        "price": supplier["preis"],
+    }, None
+
+
+def _load_available_budget(cursor, total_cost):
+    cursor.execute("""
+        SELECT id, gesamtbudget, verbrauchtes_budget
+        FROM budget
+        ORDER BY jahr DESC, quartal DESC
+        LIMIT 1
+    """)
+    budget = cursor.fetchone()
+    if not budget:
+        return None, "Es ist kein Budget hinterlegt."
+
+    free_budget = budget["gesamtbudget"] - budget["verbrauchtes_budget"]
+    if total_cost > free_budget:
+        return None, (
+            f"Budget überschritten: {total_cost:.2f} € benötigt, "
+            f"aber nur {free_budget:.2f} € frei."
+        )
+
+    return {
+        "id": budget["id"],
+        "free_budget": free_budget,
+    }, None
+
+
+def _next_order_number(cursor):
+    year = datetime.now().year
+    cursor.execute("""
+        SELECT MAX(CAST(SUBSTR(bestell_nr, 11) AS INTEGER)) AS number
+        FROM bestellungen
+        WHERE bestell_nr LIKE ?
+    """, (f"BEST-{year}-%",))
+    last_number = cursor.fetchone()["number"] or 0
+    return f"BEST-{year}-{last_number + 1:04d}"

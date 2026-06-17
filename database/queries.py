@@ -115,3 +115,24 @@ def get_withdrawal_history(limit=20):
             LIMIT ?
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
+
+
+def get_order_history(limit=30):
+    """Lädt die letzten Bestellungen mit Produkt, Lieferant und Kosten."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                b.bestell_nr,
+                b.datum,
+                p.name AS produkt,
+                l.name AS lieferant,
+                b.menge,
+                b.gesamtkosten,
+                b.status
+            FROM bestellungen b
+            JOIN produkte p ON p.id = b.produkt_id
+            LEFT JOIN lieferanten l ON l.id = b.lieferant_id
+            ORDER BY b.datum DESC
+            LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
