@@ -100,6 +100,59 @@ def get_inventory_products(only_low_stock=False, limit=0):
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_supplier_options_for_product(product_id):
+    """Lädt alle Lieferantenoptionen für ein Produkt inklusive Bewertung."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT name
+            FROM produkte
+            WHERE id = ?
+        """, (product_id,))
+        product = cursor.fetchone()
+        if not product:
+            return None, []
+
+        cursor.execute("""
+            SELECT
+                l.id,
+                l.name,
+                l.lieferzeit_tage,
+                l.bewertung,
+                pl.preis,
+                CASE
+                    WHEN p.standard_lieferant_id = l.id THEN 1
+                    ELSE 0
+                END AS ist_standard
+            FROM produkt_lieferanten pl
+            JOIN lieferanten l ON l.id = pl.lieferant_id
+            JOIN produkte p ON p.id = pl.produkt_id
+            WHERE pl.produkt_id = ?
+            ORDER BY pl.preis ASC, l.lieferzeit_tage ASC, l.bewertung DESC
+        """, (product_id,))
+        suppliers = [dict(row) for row in cursor.fetchall()]
+
+    return product["name"], suppliers
+
+
+def recommend_supplier(suppliers):
+    """Wählt aus Lieferantenoptionen den besten Kompromiss aus."""
+    if not suppliers:
+        return None
+
+    min_price = min(supplier["preis"] for supplier in suppliers)
+    max_delivery = max(supplier["lieferzeit_tage"] for supplier in suppliers) or 1
+
+    ranked = []
+    for supplier in suppliers:
+        price_score = min_price / supplier["preis"] if supplier["preis"] else 0
+        delivery_score = 1 - ((supplier["lieferzeit_tage"] - 1) / max_delivery)
+        rating_score = supplier["bewertung"] / 5
+        score = (price_score * 0.45) + (delivery_score * 0.30) + (rating_score * 0.25)
+        ranked.append({**supplier, "score": score})
+
+    return max(ranked, key=lambda supplier: supplier["score"])
+
+
 def get_withdrawal_history(limit=20):
     """Lädt die letzten Entnahmen für die Entnahme-Ansicht."""
     with db_connection() as (_, cursor):
