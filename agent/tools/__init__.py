@@ -3,6 +3,7 @@ from agent.tools.budget import check_budget, erstelle_budget
 from agent.tools.entnahme import erfasse_entnahme
 from agent.tools.lieferanten import vergleiche_lieferanten
 from agent.tools.lager import check_engpaesse, check_lagerbestand
+from agent.tools.stammdaten import erstelle_lieferant, erstelle_produkt
 
 
 ALL_TOOLS = [
@@ -14,4 +15,6 @@ ALL_TOOLS = [
     vergleiche_lieferanten,
     erstelle_bestellung,
     check_bestellhistorie,
+    erstelle_lieferant,
+    erstelle_produkt,
 ]

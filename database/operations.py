@@ -102,6 +102,130 @@ def create_budget(quarter, year, total_budget):
     }
 
 
+def create_supplier(name, contact="", delivery_days=3, rating=3.0):
+    """Legt einen Lieferanten mit Basisbewertung und Lieferzeit an."""
+    name = (name or "").strip()
+    contact = (contact or "").strip()
+
+    if not name:
+        return {
+            "success": False,
+            "message": "Der Lieferantenname darf nicht leer sein.",
+        }
+
+    if delivery_days < 0:
+        return {
+            "success": False,
+            "message": "Die Lieferzeit darf nicht negativ sein.",
+        }
+
+    if rating < 1 or rating > 5:
+        return {
+            "success": False,
+            "message": "Die Bewertung muss zwischen 1 und 5 liegen.",
+        }
+
+    try:
+        with db_connection(commit=True) as (_, cursor):
+            cursor.execute("""
+                INSERT INTO lieferanten (name, kontakt, lieferzeit_tage, bewertung)
+                VALUES (?, ?, ?, ?)
+            """, (name, contact, delivery_days, rating))
+            supplier_id = cursor.lastrowid
+    except sqlite3.IntegrityError:
+        return {
+            "success": False,
+            "message": f"Der Lieferant {name} ist bereits vorhanden.",
+        }
+
+    return {
+        "success": True,
+        "supplier_id": supplier_id,
+        "name": name,
+        "contact": contact,
+        "delivery_days": delivery_days,
+        "rating": rating,
+    }
+
+
+def create_product(
+    name,
+    stock,
+    minimum_stock,
+    unit_price,
+    supplier_id,
+    supplier_price=None,
+    supplier_delivery_days=None,
+):
+    """Legt ein Produkt an und verknüpft es mit einem Standardlieferanten."""
+    name = (name or "").strip()
+    if not name:
+        return {
+            "success": False,
+            "message": "Der Produktname darf nicht leer sein.",
+        }
+
+    if stock < 0 or minimum_stock < 0:
+        return {
+            "success": False,
+            "message": "Bestand und Mindestbestand dürfen nicht negativ sein.",
+        }
+
+    if unit_price <= 0:
+        return {
+            "success": False,
+            "message": "Der Preis muss größer als 0 sein.",
+        }
+
+    supplier_price = unit_price if supplier_price is None else supplier_price
+    if supplier_price <= 0:
+        return {
+            "success": False,
+            "message": "Der Lieferantenpreis muss größer als 0 sein.",
+        }
+
+    try:
+        with db_connection(commit=True) as (_, cursor):
+            cursor.execute("SELECT lieferzeit_tage FROM lieferanten WHERE id = ?", (supplier_id,))
+            supplier = cursor.fetchone()
+            if not supplier:
+                return {
+                    "success": False,
+                    "message": f"Lieferant mit ID {supplier_id} wurde nicht gefunden.",
+                }
+
+            delivery_days = supplier_delivery_days or supplier["lieferzeit_tage"]
+            cursor.execute("""
+                INSERT INTO produkte (
+                    name, bestand, mindestbestand, preis_pro_einheit, standard_lieferant_id
+                )
+                VALUES (?, ?, ?, ?, ?)
+            """, (name, stock, minimum_stock, unit_price, supplier_id))
+            product_id = cursor.lastrowid
+
+            cursor.execute("""
+                INSERT INTO produkt_lieferanten (
+                    produkt_id, lieferant_id, preis, lieferzeit_tage
+                )
+                VALUES (?, ?, ?, ?)
+            """, (product_id, supplier_id, supplier_price, delivery_days))
+    except sqlite3.IntegrityError:
+        return {
+            "success": False,
+            "message": f"Das Produkt {name} ist bereits vorhanden.",
+        }
+
+    return {
+        "success": True,
+        "product_id": product_id,
+        "name": name,
+        "stock": stock,
+        "minimum_stock": minimum_stock,
+        "unit_price": unit_price,
+        "supplier_id": supplier_id,
+    }
+
+
 def create_order(product_id, amount, supplier_id=None):
     """Legt eine Bestellung an, erhöht den Bestand und belastet das Budget."""
     if amount <= 0:

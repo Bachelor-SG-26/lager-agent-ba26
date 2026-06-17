@@ -14,6 +14,7 @@ APP_PAGES = (
     "Lager",
     "Entnahme",
     "Bestellungen",
+    "Stammdaten",
     "Agent",
     "Auswertung",
 )

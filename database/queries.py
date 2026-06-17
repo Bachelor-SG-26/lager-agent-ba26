@@ -100,6 +100,17 @@ def get_inventory_products(only_low_stock=False, limit=0):
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_suppliers():
+    """Lädt alle Lieferanten für Formulare und Stammdatenlisten."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT id, name, kontakt, lieferzeit_tage, bewertung
+            FROM lieferanten
+            ORDER BY name ASC
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+
 def get_supplier_options_for_product(product_id):
     """Lädt alle Lieferantenoptionen für ein Produkt inklusive Bewertung."""
     with db_connection() as (_, cursor):

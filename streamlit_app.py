@@ -8,6 +8,7 @@ from views.entnahme import show_entnahme
 from views.lager import show_lager
 from views.placeholder import show_placeholder
 from views.sidebar import render_sidebar
+from views.stammdaten import show_stammdaten
 
 
 st.set_page_config(
@@ -36,6 +37,8 @@ def main():
         show_entnahme()
     elif page == "Bestellungen":
         show_bestellungen()
+    elif page == "Stammdaten":
+        show_stammdaten()
     else:
         show_placeholder(page)
 
