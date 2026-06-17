@@ -226,6 +226,150 @@ def create_product(
     }
 
 
+def update_supplier(supplier_id, name=None, contact=None, delivery_days=None, rating=None):
+    """Aktualisiert Lieferantendaten ohne bestehende Produktzuordnungen zu verlieren."""
+    changes = {}
+    if name is not None:
+        name = name.strip()
+        if not name:
+            return {"success": False, "message": "Der Lieferantenname darf nicht leer sein."}
+        changes["name"] = name
+
+    if contact is not None:
+        changes["kontakt"] = contact.strip()
+
+    if delivery_days is not None:
+        if delivery_days < 0:
+            return {"success": False, "message": "Die Lieferzeit darf nicht negativ sein."}
+        changes["lieferzeit_tage"] = delivery_days
+
+    if rating is not None:
+        if rating < 1 or rating > 5:
+            return {"success": False, "message": "Die Bewertung muss zwischen 1 und 5 liegen."}
+        changes["bewertung"] = rating
+
+    if not changes:
+        return {"success": False, "message": "Es wurden keine Änderungen übergeben."}
+
+    try:
+        with db_connection(commit=True) as (_, cursor):
+            cursor.execute("SELECT id FROM lieferanten WHERE id = ?", (supplier_id,))
+            if not cursor.fetchone():
+                return {
+                    "success": False,
+                    "message": f"Lieferant mit ID {supplier_id} wurde nicht gefunden.",
+                }
+
+            assignments = ", ".join(f"{column} = ?" for column in changes)
+            values = list(changes.values()) + [supplier_id]
+            cursor.execute(f"UPDATE lieferanten SET {assignments} WHERE id = ?", values)
+    except sqlite3.IntegrityError:
+        return {"success": False, "message": "Ein Lieferant mit diesem Namen existiert bereits."}
+
+    return {
+        "success": True,
+        "supplier_id": supplier_id,
+        "changed_fields": sorted(changes.keys()),
+    }
+
+
+def update_product(
+    product_id,
+    name=None,
+    stock=None,
+    minimum_stock=None,
+    unit_price=None,
+    supplier_id=None,
+):
+    """Aktualisiert Produktstammdaten und hält die Lieferantenverknüpfung konsistent."""
+    changes = {}
+    if name is not None:
+        name = name.strip()
+        if not name:
+            return {"success": False, "message": "Der Produktname darf nicht leer sein."}
+        changes["name"] = name
+
+    if stock is not None:
+        if stock < 0:
+            return {"success": False, "message": "Der Bestand darf nicht negativ sein."}
+        changes["bestand"] = stock
+
+    if minimum_stock is not None:
+        if minimum_stock < 0:
+            return {"success": False, "message": "Der Mindestbestand darf nicht negativ sein."}
+        changes["mindestbestand"] = minimum_stock
+
+    if unit_price is not None:
+        if unit_price <= 0:
+            return {"success": False, "message": "Der Preis muss größer als 0 sein."}
+        changes["preis_pro_einheit"] = unit_price
+
+    if supplier_id is not None:
+        changes["standard_lieferant_id"] = supplier_id
+
+    if not changes:
+        return {"success": False, "message": "Es wurden keine Änderungen übergeben."}
+
+    try:
+        with db_connection(commit=True) as (_, cursor):
+            cursor.execute("""
+                SELECT id, preis_pro_einheit, standard_lieferant_id
+                FROM produkte
+                WHERE id = ?
+            """, (product_id,))
+            product = cursor.fetchone()
+            if not product:
+                return {
+                    "success": False,
+                    "message": f"Produkt mit ID {product_id} wurde nicht gefunden.",
+                }
+
+            selected_supplier_id = supplier_id or product["standard_lieferant_id"]
+            if supplier_id is not None:
+                cursor.execute("SELECT lieferzeit_tage FROM lieferanten WHERE id = ?", (supplier_id,))
+                supplier = cursor.fetchone()
+                if not supplier:
+                    return {
+                        "success": False,
+                        "message": f"Lieferant mit ID {supplier_id} wurde nicht gefunden.",
+                    }
+                supplier_delivery_days = supplier["lieferzeit_tage"]
+            else:
+                supplier_delivery_days = None
+
+            assignments = ", ".join(f"{column} = ?" for column in changes)
+            values = list(changes.values()) + [product_id]
+            cursor.execute(f"UPDATE produkte SET {assignments} WHERE id = ?", values)
+
+            if supplier_id is not None:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO produkt_lieferanten (
+                        produkt_id, lieferant_id, preis, lieferzeit_tage
+                    )
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    product_id,
+                    supplier_id,
+                    unit_price or product["preis_pro_einheit"],
+                    supplier_delivery_days,
+                ))
+
+            if unit_price is not None and selected_supplier_id is not None:
+                cursor.execute("""
+                    UPDATE produkt_lieferanten
+                    SET preis = ?
+                    WHERE produkt_id = ? AND lieferant_id = ?
+                """, (unit_price, product_id, selected_supplier_id))
+    except sqlite3.IntegrityError:
+        return {"success": False, "message": "Ein Produkt mit diesem Namen existiert bereits."}
+
+    return {
+        "success": True,
+        "product_id": product_id,
+        "changed_fields": sorted(changes.keys()),
+    }
+
+
 def create_order(product_id, amount, supplier_id=None):
     """Legt eine Bestellung an, erhöht den Bestand und belastet das Budget."""
     if amount <= 0:
