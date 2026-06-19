@@ -2,6 +2,7 @@ import streamlit as st
 
 from config import APP_PAGES, PROJECT_NAME
 from database.database import init_db
+from views.agent import show_agent
 from views.auswertung import show_auswertung
 from views.bestellungen import show_bestellungen
 from views.dashboard import show_dashboard
@@ -40,6 +41,8 @@ def main():
         show_bestellungen()
     elif page == "Stammdaten":
         show_stammdaten()
+    elif page == "Agent":
+        show_agent()
     elif page == "Auswertung":
         show_auswertung()
     else:
