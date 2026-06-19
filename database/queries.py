@@ -1,3 +1,6 @@
+import math
+from datetime import datetime, timedelta
+
 from database.database import db_connection
 
 
@@ -200,3 +203,83 @@ def get_order_history(limit=30):
             LIMIT ?
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
+
+
+def get_consumption_by_product(history_days=90, limit=10):
+    """Fasst den Verbrauch der letzten Tage pro Produkt zusammen."""
+    since = (datetime.now() - timedelta(days=history_days)).strftime("%Y-%m-%d %H:%M:%S")
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                p.id,
+                p.name AS produkt,
+                SUM(v.menge) AS verbrauch,
+                COUNT(v.id) AS buchungen
+            FROM verbrauch v
+            JOIN produkte p ON p.id = v.produkt_id
+            WHERE v.datum >= ?
+            GROUP BY p.id, p.name
+            ORDER BY verbrauch DESC
+            LIMIT ?
+        """, (since, limit))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def forecast_product_demand(product_id, days_ahead=30, history_days=90):
+    """Berechnet eine einfache Bedarfsprognose aus historischem Verbrauch."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT id, name, bestand, mindestbestand
+            FROM produkte
+            WHERE id = ?
+        """, (product_id,))
+        product = cursor.fetchone()
+        if not product:
+            return None
+
+        since = (datetime.now() - timedelta(days=history_days)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            SELECT COALESCE(SUM(menge), 0) AS verbrauch
+            FROM verbrauch
+            WHERE produkt_id = ? AND datum >= ?
+        """, (product_id, since))
+        total_consumption = cursor.fetchone()["verbrauch"]
+
+    daily_consumption = total_consumption / history_days if history_days > 0 else 0
+    forecast_amount = math.ceil(daily_consumption * days_ahead)
+    coverage_days = None
+    if daily_consumption > 0:
+        coverage_days = math.floor(product["bestand"] / daily_consumption)
+
+    recommended_order = max(
+        0,
+        product["mindestbestand"] + forecast_amount - product["bestand"],
+    )
+
+    return {
+        "product_id": product["id"],
+        "product_name": product["name"],
+        "stock": product["bestand"],
+        "minimum_stock": product["mindestbestand"],
+        "history_days": history_days,
+        "days_ahead": days_ahead,
+        "total_consumption": total_consumption,
+        "daily_consumption": daily_consumption,
+        "forecast_amount": forecast_amount,
+        "coverage_days": coverage_days,
+        "recommended_order": recommended_order,
+    }
+
+
+def get_forecast_overview(days_ahead=30, history_days=90, limit=20):
+    """Erstellt Prognosen für mehrere Produkte und sortiert nach Bestellbedarf."""
+    products = get_inventory_products(limit=limit)
+    forecasts = [
+        forecast_product_demand(product["id"], days_ahead, history_days)
+        for product in products
+    ]
+    return sorted(
+        [forecast for forecast in forecasts if forecast],
+        key=lambda forecast: (forecast["recommended_order"], forecast["forecast_amount"]),
+        reverse=True,
+    )
