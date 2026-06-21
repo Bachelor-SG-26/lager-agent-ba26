@@ -71,6 +71,27 @@ def create_tables(cursor):
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT NOT NULL UNIQUE,
+            titel TEXT NOT NULL DEFAULT 'Neues Gespräch',
+            erstellt_am TEXT NOT NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_nachrichten (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            erstellt_am TEXT NOT NULL,
+            FOREIGN KEY (thread_id) REFERENCES chat_sessions(thread_id)
+        )
+    """)
+
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_produkte_bestand ON produkte(bestand)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_bestellungen_datum ON bestellungen(datum)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_verbrauch_datum ON verbrauch(datum)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_nachrichten_thread ON chat_nachrichten(thread_id)")
