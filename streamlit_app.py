@@ -6,6 +6,7 @@ from views.agent import show_agent
 from views.auswertung import show_auswertung
 from views.bestellungen import show_bestellungen
 from views.dashboard import show_dashboard
+from views.einstellungen import show_einstellungen
 from views.entnahme import show_entnahme
 from views.lager import show_lager
 from views.placeholder import show_placeholder
@@ -43,6 +44,8 @@ def main():
         show_stammdaten()
     elif page == "Agent":
         show_agent()
+    elif page == "Einstellungen":
+        show_einstellungen()
     elif page == "Auswertung":
         show_auswertung()
     else:

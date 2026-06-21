@@ -23,7 +23,7 @@ def show_agent():
     _render_session_controls()
 
     if not is_agent_configured():
-        st.warning("Für den Agenten fehlt noch der NVIDIA_API_KEY.")
+        st.warning("Für den Agenten fehlt noch der NVIDIA API-Key.")
         return
 
     for message in st.session_state.agent_messages:

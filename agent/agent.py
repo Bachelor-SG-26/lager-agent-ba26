@@ -1,4 +1,3 @@
-import os
 import sqlite3
 from functools import lru_cache
 
@@ -6,9 +5,7 @@ from dotenv import load_dotenv
 
 from agent.tools import ALL_TOOLS
 from config import CHECKPOINT_DB, DATA_DIR
-
-
-DEFAULT_AGENT_MODEL = "moonshotai/kimi-k2.5"
+from services.settings import load_agent_settings
 
 SYSTEM_PROMPT = """Du bist ein Lagerbestandsassistent für ein Industrielager.
 
@@ -34,14 +31,15 @@ def _load_environment():
 def is_agent_configured():
     """Prüft, ob der Agent mit einem Modellschlüssel gestartet werden kann."""
     _load_environment()
-    return bool(os.getenv("NVIDIA_API_KEY"))
+    return bool(load_agent_settings().api_key)
 
 
 @lru_cache(maxsize=1)
 def build_agent():
     """Erzeugt den LangGraph-Agenten erst bei Bedarf."""
     _load_environment()
-    api_key = os.getenv("NVIDIA_API_KEY")
+    settings = load_agent_settings()
+    api_key = settings.api_key
     if not api_key:
         raise AgentConfigurationError("NVIDIA_API_KEY ist nicht gesetzt.")
 
@@ -54,7 +52,7 @@ def build_agent():
     checkpointer = SqliteSaver(checkpoint_conn)
 
     model = ChatNVIDIA(
-        model=os.getenv("NVIDIA_MODEL", DEFAULT_AGENT_MODEL),
+        model=settings.model,
         api_key=api_key,
         max_completion_tokens=4096,
     )
