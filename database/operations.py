@@ -48,6 +48,12 @@ def record_withdrawal(product_id, amount, reason="Produktion"):
             INSERT INTO verbrauch (produkt_id, menge, grund, datum)
             VALUES (?, ?, ?, ?)
         """, (product_id, amount, reason, date))
+        _record_activity(
+            cursor,
+            "Entnahme",
+            f"{amount} Stück {product['name']} entnommen",
+            reason,
+        )
 
     return {
         "success": True,
@@ -88,6 +94,12 @@ def create_budget(quarter, year, total_budget):
                 INSERT INTO budget (quartal, jahr, gesamtbudget, verbrauchtes_budget)
                 VALUES (?, ?, ?, 0)
             """, (quarter, year, total_budget))
+            _record_activity(
+                cursor,
+                "Budget",
+                f"Budget Q{quarter}/{year} mit {total_budget:.2f} € angelegt",
+                f"Q{quarter}/{year}",
+            )
     except sqlite3.IntegrityError:
         return {
             "success": False,
@@ -413,6 +425,12 @@ def create_order(product_id, amount, supplier_id=None):
             "UPDATE budget SET verbrauchtes_budget = verbrauchtes_budget + ? WHERE id = ?",
             (total_cost, budget["id"]),
         )
+        _record_activity(
+            cursor,
+            "Bestellung",
+            f"{amount} Stück {product['name']} bei {product['supplier_name']} bestellt",
+            order_number,
+        )
 
     return {
         "success": True,
@@ -492,3 +510,16 @@ def _next_order_number(cursor):
     """, (f"BEST-{year}-%",))
     last_number = cursor.fetchone()["number"] or 0
     return f"BEST-{year}-{last_number + 1:04d}"
+
+
+def _record_activity(cursor, area, description, reference=None):
+    """Schreibt einen kompakten Protokolleintrag zur aktuellen Aktion."""
+    cursor.execute("""
+        INSERT INTO aktivitaeten (bereich, beschreibung, referenz, erstellt_am)
+        VALUES (?, ?, ?, ?)
+    """, (
+        area,
+        description,
+        reference,
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    ))

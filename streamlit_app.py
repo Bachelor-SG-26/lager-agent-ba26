@@ -10,6 +10,7 @@ from views.einstellungen import show_einstellungen
 from views.entnahme import show_entnahme
 from views.lager import show_lager
 from views.placeholder import show_placeholder
+from views.protokoll import show_protokoll
 from views.sidebar import render_sidebar
 from views.stammdaten import show_stammdaten
 
@@ -46,6 +47,8 @@ def main():
         show_agent()
     elif page == "Einstellungen":
         show_einstellungen()
+    elif page == "Protokoll":
+        show_protokoll()
     elif page == "Auswertung":
         show_auswertung()
     else:

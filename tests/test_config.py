@@ -9,6 +9,7 @@ def test_app_pages_have_dashboard_first():
     assert APP_PAGES[0] == "Dashboard"
     assert "Agent" in APP_PAGES
     assert "Einstellungen" in APP_PAGES
+    assert "Protokoll" in APP_PAGES
 
 
 def test_database_paths_use_data_directory():

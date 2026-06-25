@@ -72,6 +72,16 @@ def create_tables(cursor):
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS aktivitaeten (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bereich TEXT NOT NULL,
+            beschreibung TEXT NOT NULL,
+            referenz TEXT,
+            erstellt_am TEXT NOT NULL
+        )
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS chat_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             thread_id TEXT NOT NULL UNIQUE,
@@ -94,4 +104,5 @@ def create_tables(cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_produkte_bestand ON produkte(bestand)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_bestellungen_datum ON bestellungen(datum)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_verbrauch_datum ON verbrauch(datum)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_aktivitaeten_erstellt ON aktivitaeten(erstellt_am)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_nachrichten_thread ON chat_nachrichten(thread_id)")

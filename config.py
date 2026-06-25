@@ -18,5 +18,6 @@ APP_PAGES = (
     "Stammdaten",
     "Agent",
     "Einstellungen",
+    "Protokoll",
     "Auswertung",
 )

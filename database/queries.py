@@ -205,6 +205,18 @@ def get_order_history(limit=30):
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_activity_log(limit=50):
+    """Lädt die letzten protokollierten Lageraktionen."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT bereich, beschreibung, referenz, erstellt_am
+            FROM aktivitaeten
+            ORDER BY id DESC
+            LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
 def get_consumption_by_product(history_days=90, limit=10):
     """Fasst den Verbrauch der letzten Tage pro Produkt zusammen."""
     since = (datetime.now() - timedelta(days=history_days)).strftime("%Y-%m-%d %H:%M:%S")
