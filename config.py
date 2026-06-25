@@ -14,6 +14,7 @@ APP_PAGES = (
     "Dashboard",
     "Lager",
     "Entnahme",
+    "Budget",
     "Bestellungen",
     "Stammdaten",
     "Agent",

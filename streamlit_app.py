@@ -5,6 +5,7 @@ from database.database import init_db
 from views.agent import show_agent
 from views.auswertung import show_auswertung
 from views.bestellungen import show_bestellungen
+from views.budget import show_budget
 from views.dashboard import show_dashboard
 from views.einstellungen import show_einstellungen
 from views.entnahme import show_entnahme
@@ -39,6 +40,8 @@ def main():
         show_lager()
     elif page == "Entnahme":
         show_entnahme()
+    elif page == "Budget":
+        show_budget()
     elif page == "Bestellungen":
         show_bestellungen()
     elif page == "Stammdaten":

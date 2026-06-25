@@ -33,6 +33,28 @@ def get_current_budget():
     }
 
 
+def get_budget_history(limit=12):
+    """Lädt die letzten Quartalsbudgets inklusive Verbrauchsquote."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                id,
+                quartal,
+                jahr,
+                gesamtbudget,
+                verbrauchtes_budget,
+                gesamtbudget - verbrauchtes_budget AS freies_budget,
+                CASE
+                    WHEN gesamtbudget > 0 THEN verbrauchtes_budget / gesamtbudget
+                    ELSE 0
+                END AS verbrauchsquote
+            FROM budget
+            ORDER BY jahr DESC, quartal DESC
+            LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
 def get_dashboard_summary():
     with db_connection() as (_, cursor):
         cursor.execute("SELECT COUNT(*) AS count FROM produkte")
