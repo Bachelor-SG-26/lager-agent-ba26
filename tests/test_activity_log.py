@@ -1,5 +1,10 @@
 from database.database import init_db
-from database.operations import create_budget, create_order, record_withdrawal
+from database.operations import (
+    create_budget,
+    create_order,
+    record_withdrawal,
+    update_order_status,
+)
 from database.queries import get_activity_log
 
 
@@ -22,6 +27,18 @@ def test_order_writes_activity_entry(test_database):
 
     assert activities[0]["bereich"] == "Bestellung"
     assert activities[0]["referenz"] == result["order_number"]
+
+
+def test_order_status_writes_activity_entry(test_database):
+    init_db()
+
+    result = create_order(product_id=1, amount=10)
+    update_order_status(result["order_number"], "geliefert")
+    activities = get_activity_log(limit=1)
+
+    assert activities[0]["bereich"] == "Bestellung"
+    assert activities[0]["referenz"] == result["order_number"]
+    assert "geliefert" in activities[0]["beschreibung"]
 
 
 def test_budget_writes_activity_entry(test_database):

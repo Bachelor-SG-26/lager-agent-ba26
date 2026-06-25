@@ -4,6 +4,9 @@ import sqlite3
 from database.database import db_connection
 
 
+ORDER_STATUSES = ("angelegt", "bestellt", "geliefert", "storniert")
+
+
 def record_withdrawal(product_id, amount, reason="Produktion"):
     """Erfasst eine Entnahme und reduziert den Lagerbestand atomar."""
     if amount <= 0:
@@ -441,6 +444,50 @@ def create_order(product_id, amount, supplier_id=None):
         "total_cost": total_cost,
         "new_stock": product["stock"] + amount,
         "free_budget": budget["free_budget"] - total_cost,
+    }
+
+
+def update_order_status(order_number, status):
+    """Aktualisiert den Status einer bestehenden Bestellung."""
+    order_number = (order_number or "").strip()
+    status = (status or "").strip().lower()
+
+    if status not in ORDER_STATUSES:
+        return {
+            "success": False,
+            "message": "Der Bestellstatus ist ungültig.",
+        }
+
+    with db_connection(commit=True) as (_, cursor):
+        cursor.execute("""
+            SELECT bestell_nr, status
+            FROM bestellungen
+            WHERE bestell_nr = ?
+        """, (order_number,))
+        order = cursor.fetchone()
+        if not order:
+            return {
+                "success": False,
+                "message": f"Bestellung {order_number} wurde nicht gefunden.",
+            }
+
+        cursor.execute("""
+            UPDATE bestellungen
+            SET status = ?
+            WHERE bestell_nr = ?
+        """, (status, order_number))
+        _record_activity(
+            cursor,
+            "Bestellung",
+            f"Status von {order_number} auf {status} gesetzt",
+            order_number,
+        )
+
+    return {
+        "success": True,
+        "order_number": order_number,
+        "old_status": order["status"],
+        "status": status,
     }
 
 

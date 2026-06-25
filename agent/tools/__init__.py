@@ -1,4 +1,8 @@
-from agent.tools.bestellungen import check_bestellhistorie, erstelle_bestellung
+from agent.tools.bestellungen import (
+    aktualisiere_bestellstatus,
+    check_bestellhistorie,
+    erstelle_bestellung,
+)
 from agent.tools.budget import check_budget, erstelle_budget
 from agent.tools.entnahme import erfasse_entnahme
 from agent.tools.lieferanten import vergleiche_lieferanten
@@ -23,6 +27,7 @@ ALL_TOOLS = [
     prognostiziere_bedarf_batch,
     erstelle_bestellung,
     check_bestellhistorie,
+    aktualisiere_bestellstatus,
     erstelle_lieferant,
     erstelle_produkt,
     aktualisiere_lieferant,

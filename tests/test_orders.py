@@ -1,6 +1,10 @@
-from agent.tools.bestellungen import check_bestellhistorie, erstelle_bestellung
+from agent.tools.bestellungen import (
+    aktualisiere_bestellstatus,
+    check_bestellhistorie,
+    erstelle_bestellung,
+)
 from database.database import db_connection, init_db
-from database.operations import create_order
+from database.operations import create_order, update_order_status
 from database.queries import get_current_budget, get_order_history
 
 
@@ -59,6 +63,27 @@ def test_failed_order_does_not_change_stock(test_database):
     assert stock_after == stock_before
 
 
+def test_update_order_status_changes_history(test_database):
+    init_db()
+    result = create_order(product_id=1, amount=10)
+
+    status_result = update_order_status(result["order_number"], "geliefert")
+    history = get_order_history(limit=1)
+
+    assert status_result["success"] is True
+    assert history[0]["status"] == "geliefert"
+
+
+def test_update_order_status_rejects_invalid_status(test_database):
+    init_db()
+    result = create_order(product_id=1, amount=10)
+
+    status_result = update_order_status(result["order_number"], "offen")
+
+    assert status_result["success"] is False
+    assert "ungültig" in status_result["message"]
+
+
 def test_erstelle_bestellung_tool_returns_summary(test_database):
     init_db()
 
@@ -79,3 +104,16 @@ def test_check_bestellhistorie_tool_returns_orders(test_database):
 
     assert "Bestellhistorie" in result
     assert "Sechskantschraube M8x40 verzinkt" in result
+
+
+def test_aktualisiere_bestellstatus_tool_returns_confirmation(test_database):
+    init_db()
+    order = create_order(product_id=1, amount=10)
+
+    result = aktualisiere_bestellstatus.invoke({
+        "bestell_nr": order["order_number"],
+        "status": "geliefert",
+    })
+
+    assert "Status für" in result
+    assert "geliefert" in result

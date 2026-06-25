@@ -1,6 +1,6 @@
 from langchain_core.tools import tool
 
-from database.operations import create_order
+from database.operations import create_order, update_order_status
 from database.queries import get_order_history
 
 
@@ -42,3 +42,16 @@ def check_bestellhistorie(limit: int = 20) -> str:
             f"{_format_currency(order['gesamtkosten'])}, Status {order['status']}"
         )
     return "\n".join(lines)
+
+
+@tool
+def aktualisiere_bestellstatus(bestell_nr: str, status: str) -> str:
+    """Aktualisiert den Status einer Bestellung."""
+    result = update_order_status(bestell_nr, status)
+    if not result["success"]:
+        return f"Fehler: {result['message']}"
+
+    return (
+        f"Status für {result['order_number']} aktualisiert: "
+        f"{result['old_status']} -> {result['status']}"
+    )

@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from database.operations import create_order
+from database.operations import ORDER_STATUSES, create_order, update_order_status
 from database.queries import (
     get_inventory_products,
     get_order_history,
@@ -77,6 +77,9 @@ def show_bestellungen():
         st.info("Noch keine Bestellungen vorhanden.")
         return
 
+    if _render_status_update(history):
+        history = get_order_history()
+
     df = pd.DataFrame(history)
     df["gesamtkosten"] = df["gesamtkosten"].map(_format_currency)
     st.dataframe(
@@ -93,3 +96,35 @@ def show_bestellungen():
             "status": "Status",
         },
     )
+
+
+def _render_status_update(history):
+    """Rendert die Statuspflege für bestehende Bestellungen."""
+    order_options = {
+        f"{order['bestell_nr']} - {order['produkt']} ({order['status']})": order
+        for order in history
+    }
+
+    with st.expander("Bestellstatus bearbeiten"):
+        with st.form("bestellung_status_form"):
+            selected_label = st.selectbox("Bestellung", list(order_options.keys()))
+            selected_order = order_options[selected_label]
+            status = st.selectbox(
+                "Status",
+                ORDER_STATUSES,
+                index=ORDER_STATUSES.index(selected_order["status"])
+                if selected_order["status"] in ORDER_STATUSES
+                else 0,
+            )
+            submitted = st.form_submit_button("Status speichern")
+
+    if not submitted:
+        return False
+
+    result = update_order_status(selected_order["bestell_nr"], status)
+    if result["success"]:
+        st.success(f"Status für {result['order_number']} wurde aktualisiert.")
+        return True
+
+    st.error(result["message"])
+    return False
