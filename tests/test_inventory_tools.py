@@ -1,7 +1,12 @@
-from agent.tools.lager import check_engpaesse, check_lagerbestand, korrigiere_lagerbestand
+from agent.tools.lager import (
+    check_engpaesse,
+    check_lagerbestand,
+    check_lagerwert,
+    korrigiere_lagerbestand,
+)
 from database.database import init_db
 from database.operations import correct_stock
-from database.queries import get_inventory_products
+from database.queries import get_inventory_products, get_inventory_value_summary
 
 
 def test_inventory_products_include_status(test_database):
@@ -11,6 +16,7 @@ def test_inventory_products_include_status(test_database):
 
     assert products
     assert {"ok", "kritisch"}.intersection({product["status"] for product in products})
+    assert "lagerwert" in products[0]
 
 
 def test_inventory_can_filter_low_stock(test_database):
@@ -20,6 +26,16 @@ def test_inventory_can_filter_low_stock(test_database):
 
     assert products
     assert all(product["bestand"] < product["mindestbestand"] for product in products)
+
+
+def test_inventory_value_summary_uses_stock_and_unit_price(test_database):
+    init_db()
+
+    summary = get_inventory_value_summary()
+
+    assert summary["products"] >= 8
+    assert summary["total_units"] > 0
+    assert summary["total_value"] > summary["critical_value"] > 0
 
 
 def test_correct_stock_updates_inventory(test_database):
@@ -59,6 +75,15 @@ def test_check_engpaesse_returns_low_stock_items(test_database):
 
     assert "Kritische Bestände" in result
     assert "unter Mindestbestand" in result
+
+
+def test_check_lagerwert_returns_inventory_value(test_database):
+    init_db()
+
+    result = check_lagerwert.invoke({})
+
+    assert "Lagerwert" in result
+    assert "Gesamtwert" in result
 
 
 def test_korrigiere_lagerbestand_tool_returns_confirmation(test_database):

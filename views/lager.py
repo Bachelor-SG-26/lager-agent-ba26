@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from database.operations import correct_stock
-from database.queries import get_inventory_products
+from database.queries import get_inventory_products, get_inventory_value_summary
 
 
 def show_lager():
@@ -12,6 +12,7 @@ def show_lager():
 
     only_low_stock = st.toggle("Nur kritische Bestände", value=False)
     products = get_inventory_products(only_low_stock=only_low_stock)
+    _render_value_summary()
 
     if not products:
         st.success("Keine kritischen Bestände gefunden.")
@@ -22,6 +23,7 @@ def show_lager():
 
     df = pd.DataFrame(products)
     df["preis_pro_einheit"] = df["preis_pro_einheit"].map(lambda value: f"{value:.2f} €")
+    df["lagerwert"] = df["lagerwert"].map(_format_currency)
 
     st.dataframe(
         df,
@@ -33,10 +35,20 @@ def show_lager():
             "bestand": "Bestand",
             "mindestbestand": "Mindestbestand",
             "preis_pro_einheit": "Preis",
+            "lagerwert": "Lagerwert",
             "lieferant": "Standardlieferant",
             "status": "Status",
         },
     )
+
+
+def _render_value_summary():
+    """Zeigt kompakte Kennzahlen zum gebundenen Lagerwert."""
+    summary = get_inventory_value_summary()
+    col_units, col_value, col_critical = st.columns(3)
+    col_units.metric("Einheiten", int(summary["total_units"]))
+    col_value.metric("Lagerwert", _format_currency(summary["total_value"]))
+    col_critical.metric("Kritischer Wert", _format_currency(summary["critical_value"]))
 
 
 def _render_stock_correction(products):
@@ -73,3 +85,7 @@ def _render_stock_correction(products):
 
     st.error(result["message"])
     return False
+
+
+def _format_currency(value):
+    return f"{value:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")

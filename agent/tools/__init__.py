@@ -6,7 +6,12 @@ from agent.tools.bestellungen import (
 from agent.tools.budget import check_budget, erstelle_budget
 from agent.tools.entnahme import erfasse_entnahme
 from agent.tools.lieferanten import vergleiche_lieferanten
-from agent.tools.lager import check_engpaesse, check_lagerbestand, korrigiere_lagerbestand
+from agent.tools.lager import (
+    check_engpaesse,
+    check_lagerbestand,
+    check_lagerwert,
+    korrigiere_lagerbestand,
+)
 from agent.tools.prognose import prognostiziere_bedarf, prognostiziere_bedarf_batch
 from agent.tools.stammdaten import (
     aktualisiere_lieferant,
@@ -19,6 +24,7 @@ from agent.tools.stammdaten import (
 ALL_TOOLS = [
     check_lagerbestand,
     check_engpaesse,
+    check_lagerwert,
     korrigiere_lagerbestand,
     erfasse_entnahme,
     check_budget,

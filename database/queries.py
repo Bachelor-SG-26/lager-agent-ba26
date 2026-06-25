@@ -68,12 +68,14 @@ def get_dashboard_summary():
         low_stock = cursor.fetchone()["count"]
 
     budget = get_current_budget()
+    inventory_value = get_inventory_value_summary()
     total_budget = budget["gesamtbudget"] if budget else 0
     used_budget = budget["verbrauchtes_budget"] if budget else 0
 
     return {
         "products": products,
         "low_stock": low_stock,
+        "inventory_value": inventory_value["total_value"],
         "total_budget": total_budget,
         "used_budget": used_budget,
         "free_budget": total_budget - used_budget,
@@ -111,6 +113,7 @@ def get_inventory_products(only_low_stock=False, limit=0):
                 p.bestand,
                 p.mindestbestand,
                 p.preis_pro_einheit,
+                p.bestand * p.preis_pro_einheit AS lagerwert,
                 l.name AS lieferant,
                 CASE
                     WHEN p.bestand < p.mindestbestand THEN 'kritisch'
@@ -123,6 +126,34 @@ def get_inventory_products(only_low_stock=False, limit=0):
             {limit_clause}
         """, params)
         return [dict(row) for row in cursor.fetchall()]
+
+
+def get_inventory_value_summary():
+    """Berechnet den aktuellen Warenwert des Lagerbestands."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                COUNT(*) AS products,
+                COALESCE(SUM(bestand), 0) AS total_units,
+                COALESCE(SUM(bestand * preis_pro_einheit), 0) AS total_value,
+                COALESCE(SUM(
+                    CASE
+                        WHEN bestand < mindestbestand THEN bestand * preis_pro_einheit
+                        ELSE 0
+                    END
+                ), 0) AS critical_value,
+                COALESCE(AVG(preis_pro_einheit), 0) AS average_unit_price
+            FROM produkte
+        """)
+        summary = cursor.fetchone()
+
+    return {
+        "products": summary["products"],
+        "total_units": summary["total_units"],
+        "total_value": summary["total_value"],
+        "critical_value": summary["critical_value"],
+        "average_unit_price": summary["average_unit_price"],
+    }
 
 
 def get_suppliers():

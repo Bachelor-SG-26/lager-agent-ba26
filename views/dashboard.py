@@ -12,9 +12,10 @@ def show_dashboard():
     st.caption("Übersicht für Lagerbestand, Bestellungen und Budget.")
 
     summary = get_dashboard_summary()
-    col_lager, col_bestellungen, col_budget = st.columns(3)
+    col_lager, col_bestellungen, col_value, col_budget = st.columns(4)
     col_lager.metric("Produkte", summary["products"])
     col_bestellungen.metric("Offene Engpässe", summary["low_stock"])
+    col_value.metric("Lagerwert", _format_currency(summary["inventory_value"]))
     col_budget.metric("Freies Budget", _format_currency(summary["free_budget"]))
 
     budget = get_current_budget()

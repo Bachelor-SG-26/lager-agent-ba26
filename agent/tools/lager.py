@@ -1,7 +1,7 @@
 from langchain_core.tools import tool
 
 from database.operations import correct_stock
-from database.queries import get_inventory_products
+from database.queries import get_inventory_products, get_inventory_value_summary
 
 
 @tool
@@ -41,6 +41,20 @@ def check_engpaesse(limit: int = 20) -> str:
 
 
 @tool
+def check_lagerwert() -> str:
+    """Zeigt den aktuellen Warenwert des Lagerbestands."""
+    summary = get_inventory_value_summary()
+    return (
+        "Lagerwert:\n"
+        f"- Produkte: {summary['products']}\n"
+        f"- Einheiten: {summary['total_units']}\n"
+        f"- Gesamtwert: {_format_currency(summary['total_value'])}\n"
+        f"- Kritischer Wert: {_format_currency(summary['critical_value'])}\n"
+        f"- Durchschnittspreis: {_format_currency(summary['average_unit_price'])}"
+    )
+
+
+@tool
 def korrigiere_lagerbestand(produkt_id: int, neuer_bestand: int, grund: str = "Inventur") -> str:
     """Korrigiert den Lagerbestand eines Produkts nach einer Zählung."""
     result = correct_stock(produkt_id, neuer_bestand, grund)
@@ -51,3 +65,7 @@ def korrigiere_lagerbestand(produkt_id: int, neuer_bestand: int, grund: str = "I
         f"Bestand für {result['product_name']} korrigiert: "
         f"{result['old_stock']} -> {result['new_stock']} Stück"
     )
+
+
+def _format_currency(value):
+    return f"{value:.2f} €"
