@@ -99,6 +99,33 @@ def get_low_stock_products(limit=5):
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_reorder_recommendations(limit=10):
+    """Erstellt Nachbestellvorschläge für kritische Bestände."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                p.id AS produkt_id,
+                p.name AS produkt,
+                p.bestand,
+                p.mindestbestand,
+                p.mindestbestand - p.bestand AS empfohlene_menge,
+                l.name AS lieferant,
+                COALESCE(pl.preis, p.preis_pro_einheit) AS preis,
+                COALESCE(pl.lieferzeit_tage, l.lieferzeit_tage, 0) AS lieferzeit_tage,
+                (p.mindestbestand - p.bestand)
+                    * COALESCE(pl.preis, p.preis_pro_einheit) AS geschaetzte_kosten
+            FROM produkte p
+            LEFT JOIN lieferanten l ON l.id = p.standard_lieferant_id
+            LEFT JOIN produkt_lieferanten pl
+                ON pl.produkt_id = p.id
+                AND pl.lieferant_id = p.standard_lieferant_id
+            WHERE p.bestand < p.mindestbestand
+            ORDER BY geschaetzte_kosten DESC, empfohlene_menge DESC, p.name ASC
+            LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
 def get_inventory_products(only_low_stock=False, limit=0):
     """Lädt Produkte mit Bestand, Mindestbestand und Lieferantenstatus."""
     where_clause = "WHERE p.bestand < p.mindestbestand" if only_low_stock else ""

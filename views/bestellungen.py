@@ -5,6 +5,7 @@ from database.operations import ORDER_STATUSES, create_order, update_order_statu
 from database.queries import (
     get_inventory_products,
     get_order_history,
+    get_reorder_recommendations,
     get_supplier_options_for_product,
     recommend_supplier,
 )
@@ -28,6 +29,8 @@ def show_bestellungen():
         f"{product['name']} ({product['lieferant']})": product
         for product in products
     }
+
+    _render_reorder_recommendations()
 
     with st.form("bestellung_form"):
         selected_label = st.selectbox("Produkt", list(product_options.keys()))
@@ -128,3 +131,32 @@ def _render_status_update(history):
 
     st.error(result["message"])
     return False
+
+
+def _render_reorder_recommendations():
+    """Zeigt konkrete Nachbestellvorschläge für kritische Bestände."""
+    recommendations = get_reorder_recommendations()
+    st.subheader("Nachbestellvorschläge")
+    if not recommendations:
+        st.success("Keine Nachbestellungen nötig.")
+        return
+
+    df = pd.DataFrame(recommendations)
+    df["preis"] = df["preis"].map(_format_currency)
+    df["geschaetzte_kosten"] = df["geschaetzte_kosten"].map(_format_currency)
+    st.dataframe(
+        df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "produkt_id": "ID",
+            "produkt": "Produkt",
+            "bestand": "Bestand",
+            "mindestbestand": "Mindestbestand",
+            "empfohlene_menge": "Empfohlene Menge",
+            "lieferant": "Lieferant",
+            "preis": "Preis",
+            "lieferzeit_tage": "Lieferzeit",
+            "geschaetzte_kosten": "Geschätzte Kosten",
+        },
+    )

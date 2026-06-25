@@ -1,6 +1,7 @@
 from agent.tools.bestellungen import (
     aktualisiere_bestellstatus,
     check_bestellhistorie,
+    check_bestellvorschlaege,
     erstelle_bestellung,
 )
 from agent.tools.budget import check_budget, erstelle_budget
@@ -34,6 +35,7 @@ ALL_TOOLS = [
     prognostiziere_bedarf_batch,
     erstelle_bestellung,
     check_bestellhistorie,
+    check_bestellvorschlaege,
     aktualisiere_bestellstatus,
     erstelle_lieferant,
     erstelle_produkt,

@@ -1,7 +1,7 @@
 from langchain_core.tools import tool
 
 from database.operations import create_order, update_order_status
-from database.queries import get_order_history
+from database.queries import get_order_history, get_reorder_recommendations
 
 
 def _format_currency(value):
@@ -40,6 +40,24 @@ def check_bestellhistorie(limit: int = 20) -> str:
             f"- {order['bestell_nr']}: {order['produkt']} bei "
             f"{order['lieferant'] or 'unbekannt'}, {order['menge']} Stück, "
             f"{_format_currency(order['gesamtkosten'])}, Status {order['status']}"
+        )
+    return "\n".join(lines)
+
+
+@tool
+def check_bestellvorschlaege(limit: int = 10) -> str:
+    """Zeigt Produkte mit konkretem Nachbestellbedarf."""
+    recommendations = get_reorder_recommendations(limit=limit)
+    if not recommendations:
+        return "Keine Nachbestellungen nötig."
+
+    lines = ["Nachbestellvorschläge:"]
+    for recommendation in recommendations:
+        lines.append(
+            f"- [{recommendation['produkt_id']}] {recommendation['produkt']}: "
+            f"{recommendation['empfohlene_menge']} Stück bei "
+            f"{recommendation['lieferant'] or 'unbekannt'}, "
+            f"geschätzte Kosten {_format_currency(recommendation['geschaetzte_kosten'])}"
         )
     return "\n".join(lines)
 

@@ -1,11 +1,12 @@
 from agent.tools.bestellungen import (
     aktualisiere_bestellstatus,
     check_bestellhistorie,
+    check_bestellvorschlaege,
     erstelle_bestellung,
 )
 from database.database import db_connection, init_db
 from database.operations import create_order, update_order_status
-from database.queries import get_current_budget, get_order_history
+from database.queries import get_current_budget, get_order_history, get_reorder_recommendations
 
 
 def test_create_order_increases_stock(test_database):
@@ -36,6 +37,16 @@ def test_create_order_writes_history_entry(test_database):
 
     assert history[0]["bestell_nr"] == result["order_number"]
     assert history[0]["produkt"] == "Sechskantschraube M8x40 verzinkt"
+
+
+def test_reorder_recommendations_include_critical_products(test_database):
+    init_db()
+
+    recommendations = get_reorder_recommendations(limit=5)
+
+    assert recommendations
+    assert recommendations[0]["empfohlene_menge"] > 0
+    assert recommendations[0]["geschaetzte_kosten"] > 0
 
 
 def test_create_order_rejects_budget_overflow(test_database):
@@ -104,6 +115,15 @@ def test_check_bestellhistorie_tool_returns_orders(test_database):
 
     assert "Bestellhistorie" in result
     assert "Sechskantschraube M8x40 verzinkt" in result
+
+
+def test_check_bestellvorschlaege_tool_returns_recommendations(test_database):
+    init_db()
+
+    result = check_bestellvorschlaege.invoke({"limit": 5})
+
+    assert "Nachbestellvorschläge" in result
+    assert "geschätzte Kosten" in result
 
 
 def test_aktualisiere_bestellstatus_tool_returns_confirmation(test_database):
