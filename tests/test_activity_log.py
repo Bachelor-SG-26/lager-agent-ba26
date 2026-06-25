@@ -1,5 +1,6 @@
 from database.database import init_db
 from database.operations import (
+    correct_stock,
     create_budget,
     create_order,
     record_withdrawal,
@@ -17,6 +18,17 @@ def test_withdrawal_writes_activity_entry(test_database):
     assert activities[0]["bereich"] == "Entnahme"
     assert "Sechskantschraube" in activities[0]["beschreibung"]
     assert activities[0]["referenz"] == "Montage"
+
+
+def test_stock_correction_writes_activity_entry(test_database):
+    init_db()
+
+    correct_stock(product_id=1, new_stock=77, reason="Inventur")
+    activities = get_activity_log(limit=1)
+
+    assert activities[0]["bereich"] == "Lager"
+    assert "korrigiert" in activities[0]["beschreibung"]
+    assert activities[0]["referenz"] == "Inventur"
 
 
 def test_order_writes_activity_entry(test_database):

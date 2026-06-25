@@ -1,5 +1,6 @@
 from langchain_core.tools import tool
 
+from database.operations import correct_stock
 from database.queries import get_inventory_products
 
 
@@ -37,3 +38,16 @@ def check_engpaesse(limit: int = 20) -> str:
             f"{fehlmenge} Stück unter Mindestbestand"
         )
     return "\n".join(lines)
+
+
+@tool
+def korrigiere_lagerbestand(produkt_id: int, neuer_bestand: int, grund: str = "Inventur") -> str:
+    """Korrigiert den Lagerbestand eines Produkts nach einer Zählung."""
+    result = correct_stock(produkt_id, neuer_bestand, grund)
+    if not result["success"]:
+        return f"Fehler: {result['message']}"
+
+    return (
+        f"Bestand für {result['product_name']} korrigiert: "
+        f"{result['old_stock']} -> {result['new_stock']} Stück"
+    )

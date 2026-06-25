@@ -7,6 +7,52 @@ from database.database import db_connection
 ORDER_STATUSES = ("angelegt", "bestellt", "geliefert", "storniert")
 
 
+def correct_stock(product_id, new_stock, reason="Inventur"):
+    """Korrigiert den gezählten Lagerbestand eines Produkts."""
+    if new_stock < 0:
+        return {
+            "success": False,
+            "message": "Der Bestand darf nicht negativ sein.",
+        }
+
+    reason = (reason or "Inventur").strip() or "Inventur"
+
+    with db_connection(commit=True) as (_, cursor):
+        cursor.execute("""
+            SELECT id, name, bestand, mindestbestand
+            FROM produkte
+            WHERE id = ?
+        """, (product_id,))
+        product = cursor.fetchone()
+        if not product:
+            return {
+                "success": False,
+                "message": f"Produkt mit ID {product_id} wurde nicht gefunden.",
+            }
+
+        cursor.execute(
+            "UPDATE produkte SET bestand = ? WHERE id = ?",
+            (new_stock, product_id),
+        )
+        _record_activity(
+            cursor,
+            "Lager",
+            f"Bestand von {product['name']} von {product['bestand']} auf {new_stock} korrigiert",
+            reason,
+        )
+
+    return {
+        "success": True,
+        "product_id": product_id,
+        "product_name": product["name"],
+        "old_stock": product["bestand"],
+        "new_stock": new_stock,
+        "difference": new_stock - product["bestand"],
+        "reason": reason,
+        "is_low_stock": new_stock < product["mindestbestand"],
+    }
+
+
 def record_withdrawal(product_id, amount, reason="Produktion"):
     """Erfasst eine Entnahme und reduziert den Lagerbestand atomar."""
     if amount <= 0:
