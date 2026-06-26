@@ -4,7 +4,9 @@ import streamlit as st
 from database.operations import ORDER_STATUSES, create_order, update_order_status
 from database.queries import (
     get_inventory_products,
+    get_open_orders,
     get_order_history,
+    get_order_status_summary,
     get_reorder_recommendations,
     get_supplier_options_for_product,
     recommend_supplier,
@@ -31,6 +33,7 @@ def show_bestellungen():
     }
 
     _render_reorder_recommendations()
+    _render_open_orders()
 
     with st.form("bestellung_form"):
         selected_label = st.selectbox("Produkt", list(product_options.keys()))
@@ -158,5 +161,37 @@ def _render_reorder_recommendations():
             "preis": "Preis",
             "lieferzeit_tage": "Lieferzeit",
             "geschaetzte_kosten": "Geschätzte Kosten",
+        },
+    )
+
+
+def _render_open_orders():
+    """Zeigt offene Bestellungen mit aktuellem Bestellwert."""
+    summary = get_order_status_summary()
+    orders = get_open_orders(limit=10)
+
+    col_count, col_cost = st.columns(2)
+    col_count.metric("Offene Bestellungen", summary["open_count"])
+    col_cost.metric("Offener Bestellwert", _format_currency(summary["open_cost"]))
+
+    if not orders:
+        st.success("Keine offenen Bestellungen.")
+        return
+
+    st.subheader("Offene Bestellungen")
+    df = pd.DataFrame(orders)
+    df["gesamtkosten"] = df["gesamtkosten"].map(_format_currency)
+    st.dataframe(
+        df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "bestell_nr": "Bestellnummer",
+            "datum": "Datum",
+            "produkt": "Produkt",
+            "lieferant": "Lieferant",
+            "menge": "Menge",
+            "gesamtkosten": "Kosten",
+            "status": "Status",
         },
     )

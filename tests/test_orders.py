@@ -2,11 +2,18 @@ from agent.tools.bestellungen import (
     aktualisiere_bestellstatus,
     check_bestellhistorie,
     check_bestellvorschlaege,
+    check_offene_bestellungen,
     erstelle_bestellung,
 )
 from database.database import db_connection, init_db
 from database.operations import create_order, update_order_status
-from database.queries import get_current_budget, get_order_history, get_reorder_recommendations
+from database.queries import (
+    get_current_budget,
+    get_open_orders,
+    get_order_history,
+    get_order_status_summary,
+    get_reorder_recommendations,
+)
 
 
 def test_create_order_increases_stock(test_database):
@@ -47,6 +54,17 @@ def test_reorder_recommendations_include_critical_products(test_database):
     assert recommendations
     assert recommendations[0]["empfohlene_menge"] > 0
     assert recommendations[0]["geschaetzte_kosten"] > 0
+
+
+def test_open_orders_include_seeded_order(test_database):
+    init_db()
+
+    orders = get_open_orders()
+    summary = get_order_status_summary()
+
+    assert orders
+    assert summary["open_count"] >= 1
+    assert summary["open_cost"] > 0
 
 
 def test_create_order_rejects_budget_overflow(test_database):
@@ -124,6 +142,15 @@ def test_check_bestellvorschlaege_tool_returns_recommendations(test_database):
 
     assert "Nachbestellvorschläge" in result
     assert "geschätzte Kosten" in result
+
+
+def test_check_offene_bestellungen_tool_returns_orders(test_database):
+    init_db()
+
+    result = check_offene_bestellungen.invoke({"limit": 5})
+
+    assert "Offene Bestellungen" in result
+    assert "BEST-" in result
 
 
 def test_aktualisiere_bestellstatus_tool_returns_confirmation(test_database):

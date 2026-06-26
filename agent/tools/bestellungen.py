@@ -1,7 +1,7 @@
 from langchain_core.tools import tool
 
 from database.operations import create_order, update_order_status
-from database.queries import get_order_history, get_reorder_recommendations
+from database.queries import get_open_orders, get_order_history, get_reorder_recommendations
 
 
 def _format_currency(value):
@@ -58,6 +58,23 @@ def check_bestellvorschlaege(limit: int = 10) -> str:
             f"{recommendation['empfohlene_menge']} Stück bei "
             f"{recommendation['lieferant'] or 'unbekannt'}, "
             f"geschätzte Kosten {_format_currency(recommendation['geschaetzte_kosten'])}"
+        )
+    return "\n".join(lines)
+
+
+@tool
+def check_offene_bestellungen(limit: int = 10) -> str:
+    """Zeigt offene Bestellungen mit Status und Kosten."""
+    orders = get_open_orders(limit=limit)
+    if not orders:
+        return "Keine offenen Bestellungen."
+
+    lines = ["Offene Bestellungen:"]
+    for order in orders:
+        lines.append(
+            f"- {order['bestell_nr']}: {order['produkt']} bei "
+            f"{order['lieferant'] or 'unbekannt'}, {order['menge']} Stück, "
+            f"{_format_currency(order['gesamtkosten'])}, Status {order['status']}"
         )
     return "\n".join(lines)
 

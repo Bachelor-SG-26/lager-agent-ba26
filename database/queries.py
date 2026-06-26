@@ -69,12 +69,14 @@ def get_dashboard_summary():
 
     budget = get_current_budget()
     inventory_value = get_inventory_value_summary()
+    order_summary = get_order_status_summary()
     total_budget = budget["gesamtbudget"] if budget else 0
     used_budget = budget["verbrauchtes_budget"] if budget else 0
 
     return {
         "products": products,
         "low_stock": low_stock,
+        "open_orders": order_summary["open_count"],
         "inventory_value": inventory_value["total_value"],
         "total_budget": total_budget,
         "used_budget": used_budget,
@@ -280,6 +282,53 @@ def get_order_history(limit=30):
             JOIN produkte p ON p.id = b.produkt_id
             LEFT JOIN lieferanten l ON l.id = b.lieferant_id
             ORDER BY b.datum DESC
+            LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_order_status_summary():
+    """Fasst Bestellungen nach Status und offenem Bestellwert zusammen."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT status, COUNT(*) AS count, COALESCE(SUM(gesamtkosten), 0) AS total_cost
+            FROM bestellungen
+            GROUP BY status
+        """)
+        rows = [dict(row) for row in cursor.fetchall()]
+
+    by_status = {
+        row["status"]: {
+            "count": row["count"],
+            "total_cost": row["total_cost"],
+        }
+        for row in rows
+    }
+    open_statuses = ("angelegt", "bestellt")
+    return {
+        "by_status": by_status,
+        "open_count": sum(by_status.get(status, {}).get("count", 0) for status in open_statuses),
+        "open_cost": sum(by_status.get(status, {}).get("total_cost", 0) for status in open_statuses),
+    }
+
+
+def get_open_orders(limit=10):
+    """Lädt Bestellungen, die noch nicht geliefert oder storniert sind."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                b.bestell_nr,
+                b.datum,
+                p.name AS produkt,
+                l.name AS lieferant,
+                b.menge,
+                b.gesamtkosten,
+                b.status
+            FROM bestellungen b
+            JOIN produkte p ON p.id = b.produkt_id
+            LEFT JOIN lieferanten l ON l.id = b.lieferant_id
+            WHERE b.status IN ('angelegt', 'bestellt')
+            ORDER BY b.datum ASC, b.id ASC
             LIMIT ?
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]

@@ -41,6 +41,7 @@ def test_dashboard_summary_uses_seed_data(test_database):
 
     assert summary["products"] >= 8
     assert summary["low_stock"] >= 1
+    assert summary["open_orders"] >= 1
     assert summary["free_budget"] > 0
     assert summary["inventory_value"] > 0
 
