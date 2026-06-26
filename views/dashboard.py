@@ -1,6 +1,11 @@
 import streamlit as st
 
-from database.queries import get_current_budget, get_dashboard_summary, get_low_stock_products
+from database.queries import (
+    get_activity_log,
+    get_current_budget,
+    get_dashboard_summary,
+    get_low_stock_products,
+)
 
 
 def _format_currency(value):
@@ -32,16 +37,33 @@ def show_dashboard():
     products = get_low_stock_products()
     if not products:
         st.success("Alle Bestände liegen über dem Mindestbestand.")
+    else:
+        st.dataframe(
+            products,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "name": "Produkt",
+                "bestand": "Bestand",
+                "mindestbestand": "Mindestbestand",
+                "lieferant": "Standardlieferant",
+            },
+        )
+
+    st.subheader("Letzte Aktivitäten")
+    activities = get_activity_log(limit=5)
+    if not activities:
+        st.info("Noch keine Aktivitäten vorhanden.")
         return
 
     st.dataframe(
-        products,
+        activities,
         width="stretch",
         hide_index=True,
         column_config={
-            "name": "Produkt",
-            "bestand": "Bestand",
-            "mindestbestand": "Mindestbestand",
-            "lieferant": "Standardlieferant",
+            "bereich": "Bereich",
+            "beschreibung": "Beschreibung",
+            "referenz": "Referenz",
+            "erstellt_am": "Zeitpunkt",
         },
     )

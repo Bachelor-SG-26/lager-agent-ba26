@@ -61,3 +61,16 @@ def test_budget_writes_activity_entry(test_database):
 
     assert activities[0]["bereich"] == "Budget"
     assert activities[0]["referenz"] == "Q4/2099"
+
+
+def test_activity_log_respects_requested_limit(test_database):
+    """Begrenzt die Kurzansicht auf die angeforderte Anzahl an Einträgen."""
+    init_db()
+
+    record_withdrawal(product_id=1, amount=2, reason="Montage")
+    create_budget(4, 2099, 750)
+
+    activities = get_activity_log(limit=1)
+
+    assert len(activities) == 1
+    assert activities[0]["bereich"] == "Budget"
