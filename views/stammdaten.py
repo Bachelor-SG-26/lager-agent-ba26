@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from database.operations import create_product, create_supplier, update_product, update_supplier
-from database.queries import get_inventory_products, get_suppliers
+from database.queries import get_inventory_products, get_supplier_overview, get_suppliers
 
 
 def show_stammdaten():
@@ -199,8 +199,8 @@ def _render_supplier_update_form():
 
 
 def _render_supplier_table():
-    suppliers = get_suppliers()
-    st.subheader("Lieferanten")
+    suppliers = get_supplier_overview()
+    st.subheader("Lieferantenübersicht")
     st.dataframe(
         pd.DataFrame(suppliers),
         width="stretch",
@@ -211,5 +211,8 @@ def _render_supplier_table():
             "kontakt": "Kontakt",
             "lieferzeit_tage": "Lieferzeit",
             "bewertung": "Bewertung",
+            "produktanzahl": "Produkte",
+            "durchschnittspreis": "Ø Preis",
+            "bestellungen": "Bestellungen",
         },
     )

@@ -1,7 +1,12 @@
 from agent.tools.lieferanten import vergleiche_lieferanten
 from database.database import init_db
 from database.operations import create_order
-from database.queries import get_order_history, get_supplier_options_for_product, recommend_supplier
+from database.queries import (
+    get_order_history,
+    get_supplier_options_for_product,
+    get_supplier_overview,
+    recommend_supplier,
+)
 
 
 def test_supplier_options_include_product_suppliers(test_database):
@@ -22,6 +27,20 @@ def test_supplier_recommendation_returns_best_option(test_database):
 
     assert recommendation["id"] in {supplier["id"] for supplier in suppliers}
     assert recommendation["score"] > 0
+
+
+def test_supplier_overview_includes_operational_metrics(test_database):
+    init_db()
+
+    overview = get_supplier_overview()
+
+    assert len(overview) >= 4
+    assert {"produktanzahl", "durchschnittspreis", "bestellungen"}.issubset(overview[0])
+    assert all(supplier["produktanzahl"] >= 1 for supplier in overview)
+    assert overview == sorted(
+        overview,
+        key=lambda supplier: (-supplier["bewertung"], supplier["lieferzeit_tage"], supplier["name"]),
+    )
 
 
 def test_order_can_use_selected_supplier(test_database):

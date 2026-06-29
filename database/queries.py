@@ -196,6 +196,37 @@ def get_suppliers():
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_supplier_overview():
+    """Lädt Lieferanten mit Produktabdeckung und bisherigen Bestellungen."""
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                l.id,
+                l.name,
+                l.kontakt,
+                l.lieferzeit_tage,
+                l.bewertung,
+                (
+                    SELECT COUNT(*)
+                    FROM produkt_lieferanten pl
+                    WHERE pl.lieferant_id = l.id
+                ) AS produktanzahl,
+                (
+                    SELECT COALESCE(AVG(pl.preis), 0)
+                    FROM produkt_lieferanten pl
+                    WHERE pl.lieferant_id = l.id
+                ) AS durchschnittspreis,
+                (
+                    SELECT COUNT(*)
+                    FROM bestellungen b
+                    WHERE b.lieferant_id = l.id
+                ) AS bestellungen
+            FROM lieferanten l
+            ORDER BY l.bewertung DESC, l.lieferzeit_tage ASC, l.name ASC
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+
 def get_supplier_options_for_product(product_id):
     """Lädt alle Lieferantenoptionen für ein Produkt inklusive Bewertung."""
     with db_connection() as (_, cursor):
