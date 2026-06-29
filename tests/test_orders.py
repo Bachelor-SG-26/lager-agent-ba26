@@ -10,6 +10,8 @@ from database.operations import create_order, update_order_status
 from database.queries import (
     get_current_budget,
     get_open_orders,
+    get_order_cost_summary,
+    get_order_cost_trend,
     get_order_history,
     get_order_status_summary,
     get_reorder_recommendations,
@@ -65,6 +67,19 @@ def test_open_orders_include_seeded_order(test_database):
     assert orders
     assert summary["open_count"] >= 1
     assert summary["open_cost"] > 0
+
+
+def test_order_cost_trend_summarizes_recent_orders(test_database):
+    init_db()
+
+    trend = get_order_cost_trend(history_days=365)
+    summary = get_order_cost_summary(history_days=365)
+
+    assert trend
+    assert trend[-1]["bestellungen"] >= 1
+    assert summary["bestellungen"] >= trend[-1]["bestellungen"]
+    assert summary["gesamtkosten"] >= 96
+    assert summary["durchschnittskosten"] > 0
 
 
 def test_create_order_rejects_budget_overflow(test_database):

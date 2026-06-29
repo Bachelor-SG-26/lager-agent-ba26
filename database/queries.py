@@ -318,6 +318,36 @@ def get_order_history(limit=30):
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_order_cost_trend(history_days=180):
+    """Fasst Bestellanzahl und Kosten pro Monat zusammen."""
+    since = (datetime.now() - timedelta(days=history_days)).strftime("%Y-%m-%d %H:%M:%S")
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                strftime('%Y-%m', datum) AS monat,
+                COUNT(*) AS bestellungen,
+                COALESCE(SUM(gesamtkosten), 0) AS gesamtkosten
+            FROM bestellungen
+            WHERE datum >= ?
+            GROUP BY strftime('%Y-%m', datum)
+            ORDER BY monat ASC
+        """, (since,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_order_cost_summary(history_days=180):
+    """Berechnet kompakte Kennzahlen für Bestellungen im Zeitraum."""
+    trend = get_order_cost_trend(history_days=history_days)
+    order_count = sum(row["bestellungen"] for row in trend)
+    total_cost = sum(row["gesamtkosten"] for row in trend)
+
+    return {
+        "bestellungen": order_count,
+        "gesamtkosten": total_cost,
+        "durchschnittskosten": total_cost / order_count if order_count else 0,
+    }
+
+
 def get_order_status_summary():
     """Fasst Bestellungen nach Status und offenem Bestellwert zusammen."""
     with db_connection() as (_, cursor):

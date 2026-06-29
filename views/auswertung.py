@@ -1,7 +1,12 @@
 import pandas as pd
 import streamlit as st
 
-from database.queries import get_consumption_by_product, get_forecast_overview
+from database.queries import (
+    get_consumption_by_product,
+    get_forecast_overview,
+    get_order_cost_summary,
+    get_order_cost_trend,
+)
 
 
 def show_auswertung():
@@ -14,6 +19,7 @@ def show_auswertung():
 
     _render_consumption(history_days)
     _render_forecast(days_ahead, history_days)
+    _render_order_costs(history_days)
 
 
 def _render_consumption(history_days):
@@ -66,4 +72,29 @@ def _render_forecast(days_ahead, history_days):
             "coverage_days": "Reichweite",
             "recommended_order": "Bestellvorschlag",
         },
+    )
+
+
+def _render_order_costs(history_days):
+    """Zeigt Bestellkosten als Monatsverlauf mit Exportmöglichkeit."""
+    st.subheader("Bestellkosten")
+    summary = get_order_cost_summary(history_days=history_days)
+    trend = get_order_cost_trend(history_days=history_days)
+
+    col_orders, col_costs, col_average = st.columns(3)
+    col_orders.metric("Bestellungen", summary["bestellungen"])
+    col_costs.metric("Gesamtkosten", f"{summary['gesamtkosten']:.2f} €")
+    col_average.metric("Durchschnitt", f"{summary['durchschnittskosten']:.2f} €")
+
+    if not trend:
+        st.info("Für den gewählten Zeitraum liegen keine Bestellungen vor.")
+        return
+
+    df = pd.DataFrame(trend)
+    st.bar_chart(df.set_index("monat")[["gesamtkosten"]])
+    st.download_button(
+        label="Bestellkosten exportieren",
+        data=df.to_csv(index=False).encode("utf-8"),
+        file_name="bestellkosten.csv",
+        mime="text/csv",
     )
