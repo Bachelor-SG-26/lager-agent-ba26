@@ -16,7 +16,8 @@ def test_consumption_summary_uses_withdrawal_history(test_database):
     consumption = get_consumption_by_product(history_days=90)
 
     assert consumption
-    assert consumption[0]["verbrauch"] > 0
+    assert consumption[0]["produkt"] == "Sechskantschraube M8x40 verzinkt"
+    assert consumption[0]["verbrauch"] == 60
 
 
 def test_consumption_by_reason_groups_withdrawals(test_database):

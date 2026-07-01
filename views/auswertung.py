@@ -42,14 +42,17 @@ def _render_consumption_timeline(history_days):
 
 
 def _render_consumption(history_days):
+    """Zeigt die meistverbrauchten Produkte als Chart und Tabelle."""
     st.subheader("Verbrauch nach Produkt")
     consumption = get_consumption_by_product(history_days=history_days)
     if not consumption:
         st.info("Für den gewählten Zeitraum liegen keine Entnahmen vor.")
         return
 
+    df = pd.DataFrame(consumption)
+    st.bar_chart(df.set_index("produkt")[["verbrauch"]])
     st.dataframe(
-        pd.DataFrame(consumption),
+        df,
         width="stretch",
         hide_index=True,
         column_config={
