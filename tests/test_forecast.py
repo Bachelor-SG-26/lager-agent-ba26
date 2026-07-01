@@ -5,6 +5,7 @@ from database.queries import (
     forecast_product_demand,
     get_consumption_by_product,
     get_consumption_by_reason,
+    get_consumption_timeline,
     get_forecast_overview,
 )
 
@@ -27,6 +28,17 @@ def test_consumption_by_reason_groups_withdrawals(test_database):
     assert consumption[0]["grund"] == "Montage"
     assert consumption[0]["verbrauch"] == 100
     assert consumption[0]["buchungen"] == 2
+
+
+def test_consumption_timeline_groups_withdrawals_by_day(test_database):
+    init_db()
+
+    timeline = get_consumption_timeline(history_days=90)
+
+    assert len(timeline) == 4
+    assert sum(row["verbrauch"] for row in timeline) == 111
+    assert timeline[0]["datum"] < timeline[-1]["datum"]
+    assert all(row["buchungen"] == 1 for row in timeline)
 
 
 def test_forecast_product_demand_returns_recommendation(test_database):

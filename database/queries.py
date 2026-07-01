@@ -432,6 +432,23 @@ def get_consumption_by_product(history_days=90, limit=10):
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_consumption_timeline(history_days=90):
+    """Fasst den täglichen Materialverbrauch für Zeitverlaufsdiagramme zusammen."""
+    since = (datetime.now() - timedelta(days=history_days)).strftime("%Y-%m-%d %H:%M:%S")
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                DATE(datum) AS datum,
+                SUM(menge) AS verbrauch,
+                COUNT(id) AS buchungen
+            FROM verbrauch
+            WHERE datum >= ?
+            GROUP BY DATE(datum)
+            ORDER BY datum ASC
+        """, (since,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
 def get_consumption_by_reason(history_days=90):
     """Gruppiert Entnahmen nach Grund für die Verbrauchsauswertung."""
     since = (datetime.now() - timedelta(days=history_days)).strftime("%Y-%m-%d %H:%M:%S")

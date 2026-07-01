@@ -5,6 +5,7 @@ from database.queries import (
     get_budget_trend,
     get_consumption_by_product,
     get_consumption_by_reason,
+    get_consumption_timeline,
     get_forecast_overview,
     get_order_cost_summary,
     get_order_cost_trend,
@@ -19,11 +20,25 @@ def show_auswertung():
     history_days = st.slider("Historie in Tagen", min_value=30, max_value=180, value=90, step=30)
     days_ahead = st.slider("Prognosezeitraum", min_value=7, max_value=90, value=30, step=7)
 
+    _render_consumption_timeline(history_days)
     _render_consumption(history_days)
     _render_consumption_by_reason(history_days)
     _render_forecast(days_ahead, history_days)
     _render_order_costs(history_days)
     _render_budget_trend()
+
+
+def _render_consumption_timeline(history_days):
+    """Zeigt den Materialverbrauch als chronologischen Tagesverlauf."""
+    st.subheader("Materialverbrauch über Zeit")
+    timeline = get_consumption_timeline(history_days=history_days)
+    if not timeline:
+        st.info("Für den gewählten Zeitraum liegen keine Verbrauchsdaten vor.")
+        return
+
+    df = pd.DataFrame(timeline)
+    df["datum"] = pd.to_datetime(df["datum"])
+    st.line_chart(df.set_index("datum")[["verbrauch"]])
 
 
 def _render_consumption(history_days):
