@@ -1,7 +1,10 @@
+import pandas as pd
+
 from agent.tools.entnahme import erfasse_entnahme
 from database.database import db_connection, init_db
 from database.operations import record_withdrawal
 from database.queries import get_withdrawal_history
+from views.entnahme import _build_withdrawal_export
 
 
 def test_record_withdrawal_reduces_stock(test_database):
@@ -22,6 +25,18 @@ def test_record_withdrawal_writes_consumption_entry(test_database):
     assert history[0]["produkt"] == "Sechskantschraube M8x40 verzinkt"
     assert history[0]["menge"] == 5
     assert history[0]["grund"] == "Montage"
+
+
+def test_withdrawal_export_contains_history_rows(test_database):
+    init_db()
+
+    record_withdrawal(product_id=1, amount=5, reason="Montage")
+    history = get_withdrawal_history(limit=1)
+    csv_data = _build_withdrawal_export(pd.DataFrame(history)).decode("utf-8")
+
+    assert "produkt,menge,grund" in csv_data
+    assert "Sechskantschraube M8x40 verzinkt" in csv_data
+    assert "Montage" in csv_data
 
 
 def test_record_withdrawal_rejects_missing_stock(test_database):

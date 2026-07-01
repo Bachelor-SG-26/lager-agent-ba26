@@ -44,8 +44,9 @@ def show_entnahme():
         st.info("Noch keine Entnahmen erfasst.")
         return
 
+    df = pd.DataFrame(history)
     st.dataframe(
-        pd.DataFrame(history),
+        df,
         width="stretch",
         hide_index=True,
         column_config={
@@ -55,3 +56,14 @@ def show_entnahme():
             "grund": "Grund",
         },
     )
+    st.download_button(
+        label="Entnahmen exportieren",
+        data=_build_withdrawal_export(df),
+        file_name="entnahmen.csv",
+        mime="text/csv",
+    )
+
+
+def _build_withdrawal_export(df):
+    """Bereitet die Entnahmehistorie als UTF-8-CSV für den Download vor."""
+    return df.to_csv(index=False).encode("utf-8")
