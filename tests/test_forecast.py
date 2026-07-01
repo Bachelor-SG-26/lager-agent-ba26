@@ -4,6 +4,7 @@ from database.operations import create_product
 from database.queries import (
     forecast_product_demand,
     get_consumption_by_product,
+    get_consumption_by_reason,
     get_forecast_overview,
 )
 
@@ -15,6 +16,17 @@ def test_consumption_summary_uses_withdrawal_history(test_database):
 
     assert consumption
     assert consumption[0]["verbrauch"] > 0
+
+
+def test_consumption_by_reason_groups_withdrawals(test_database):
+    init_db()
+
+    consumption = get_consumption_by_reason(history_days=90)
+
+    assert consumption
+    assert consumption[0]["grund"] == "Montage"
+    assert consumption[0]["verbrauch"] == 100
+    assert consumption[0]["buchungen"] == 2
 
 
 def test_forecast_product_demand_returns_recommendation(test_database):

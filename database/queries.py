@@ -432,6 +432,23 @@ def get_consumption_by_product(history_days=90, limit=10):
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_consumption_by_reason(history_days=90):
+    """Gruppiert Entnahmen nach Grund für die Verbrauchsauswertung."""
+    since = (datetime.now() - timedelta(days=history_days)).strftime("%Y-%m-%d %H:%M:%S")
+    with db_connection() as (_, cursor):
+        cursor.execute("""
+            SELECT
+                COALESCE(NULLIF(TRIM(grund), ''), 'Ohne Grund') AS grund,
+                SUM(menge) AS verbrauch,
+                COUNT(id) AS buchungen
+            FROM verbrauch
+            WHERE datum >= ?
+            GROUP BY COALESCE(NULLIF(TRIM(grund), ''), 'Ohne Grund')
+            ORDER BY verbrauch DESC, grund ASC
+        """, (since,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
 def forecast_product_demand(product_id, days_ahead=30, history_days=90):
     """Berechnet eine einfache Bedarfsprognose aus historischem Verbrauch."""
     with db_connection() as (_, cursor):

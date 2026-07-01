@@ -4,6 +4,7 @@ import streamlit as st
 from database.queries import (
     get_budget_trend,
     get_consumption_by_product,
+    get_consumption_by_reason,
     get_forecast_overview,
     get_order_cost_summary,
     get_order_cost_trend,
@@ -11,7 +12,7 @@ from database.queries import (
 
 
 def show_auswertung():
-    """Rendert Verbrauchsauswertung und Bedarfsprognose."""
+    """Rendert Verbrauch, Prognosen, Bestellkosten und Budgetverlauf."""
     st.title("Auswertung")
     st.caption("Verbrauch verstehen und Nachbestellungen vorbereiten.")
 
@@ -19,6 +20,7 @@ def show_auswertung():
     days_ahead = st.slider("Prognosezeitraum", min_value=7, max_value=90, value=30, step=7)
 
     _render_consumption(history_days)
+    _render_consumption_by_reason(history_days)
     _render_forecast(days_ahead, history_days)
     _render_order_costs(history_days)
     _render_budget_trend()
@@ -38,6 +40,28 @@ def _render_consumption(history_days):
         column_config={
             "id": "ID",
             "produkt": "Produkt",
+            "verbrauch": "Verbrauch",
+            "buchungen": "Buchungen",
+        },
+    )
+
+
+def _render_consumption_by_reason(history_days):
+    """Zeigt, aus welchen Gründen Material entnommen wurde."""
+    st.subheader("Verbrauch nach Grund")
+    consumption = get_consumption_by_reason(history_days=history_days)
+    if not consumption:
+        st.info("Für den gewählten Zeitraum liegen keine Entnahmegründe vor.")
+        return
+
+    df = pd.DataFrame(consumption)
+    st.bar_chart(df.set_index("grund")[["verbrauch"]])
+    st.dataframe(
+        df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "grund": "Grund",
             "verbrauch": "Verbrauch",
             "buchungen": "Buchungen",
         },
