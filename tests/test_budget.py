@@ -1,7 +1,7 @@
 from agent.tools.budget import check_budget, erstelle_budget
 from database.database import init_db
 from database.operations import create_budget
-from database.queries import get_budget_history, get_current_budget
+from database.queries import get_budget_history, get_budget_trend, get_current_budget
 
 
 def test_current_budget_returns_seeded_quarter(test_database):
@@ -44,6 +44,19 @@ def test_budget_history_orders_latest_quarter_first(test_database):
     assert history[0]["jahr"] == 2100
     assert history[0]["quartal"] == 1
     assert history[0]["freies_budget"] == 8200.00
+
+
+def test_budget_trend_orders_chronologically(test_database):
+    init_db()
+
+    create_budget(quarter=4, year=2099, total_budget=7500.00)
+    create_budget(quarter=1, year=2100, total_budget=8200.00)
+    trend = get_budget_trend(limit=2)
+
+    assert trend[0]["jahr"] == 2099
+    assert trend[0]["quartal"] == 4
+    assert trend[-1]["jahr"] == 2100
+    assert trend[-1]["quartal"] == 1
 
 
 def test_create_budget_validates_input(test_database):

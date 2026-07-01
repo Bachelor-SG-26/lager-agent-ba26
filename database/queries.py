@@ -55,6 +55,11 @@ def get_budget_history(limit=12):
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_budget_trend(limit=12):
+    """Lädt Budgetdaten chronologisch für Auswertungsdiagramme."""
+    return list(reversed(get_budget_history(limit=limit)))
+
+
 def get_dashboard_summary():
     with db_connection() as (_, cursor):
         cursor.execute("SELECT COUNT(*) AS count FROM produkte")
