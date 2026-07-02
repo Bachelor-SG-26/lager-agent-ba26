@@ -3,7 +3,7 @@ import uuid
 import streamlit as st
 
 from agent.agent import AgentConfigurationError, is_agent_configured
-from services.agent_runner import ask_agent
+from services.agent_runner import stream_agent_response
 from services.chat_session import (
     create_chat_session,
     get_latest_chat_session,
@@ -44,13 +44,26 @@ def show_agent():
     with st.chat_message("assistant"):
         with st.spinner("Agent arbeitet..."):
             try:
-                answer = ask_agent(user_input, st.session_state.agent_thread_id)
+                answer = _render_streaming_answer(user_input, st.session_state.agent_thread_id)
             except AgentConfigurationError as error:
                 answer = str(error)
-            st.markdown(answer)
+                st.markdown(answer)
 
     st.session_state.agent_messages.append({"role": "assistant", "content": answer})
     save_chat_message(st.session_state.agent_thread_id, "assistant", answer)
+
+
+def _render_streaming_answer(message, thread_id):
+    """Zeigt eine Agent-Antwort während des Streams an und gibt sie zurück."""
+    placeholder = st.empty()
+    chunks = []
+    for chunk in stream_agent_response(message, thread_id):
+        chunks.append(chunk)
+        placeholder.markdown("".join(chunks))
+
+    answer = "".join(chunks).strip() or "Es wurde keine Antwort erzeugt."
+    placeholder.markdown(answer)
+    return answer
 
 
 def _ensure_chat_state():

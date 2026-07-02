@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from agent.agent import AgentConfigurationError, build_agent, is_agent_configured
-from services.agent_runner import ask_agent, check_agent_readiness
+from services.agent_runner import ask_agent, check_agent_readiness, stream_agent_response
 
 
 def test_agent_configuration_detects_missing_key(monkeypatch):
@@ -51,3 +51,40 @@ def test_ask_agent_uses_agent_bridge(monkeypatch):
 
     assert ask_agent("Prüfe den Lagerbestand", "thread-1") == "Antwort bereit"
     assert captured["config"]["configurable"]["thread_id"] == "thread-1"
+
+
+def test_stream_agent_response_yields_agent_chunks(monkeypatch):
+    captured = {}
+
+    def fake_stream(input_data, config, stream_mode):
+        captured["input"] = input_data
+        captured["config"] = config
+        captured["stream_mode"] = stream_mode
+        return iter((
+            (SimpleNamespace(content="Ant"), {"langgraph_node": "agent"}),
+            (SimpleNamespace(content="wort"), {"langgraph_node": "agent"}),
+            (SimpleNamespace(content="ignoriert"), {"langgraph_node": "tools"}),
+        ))
+
+    monkeypatch.setattr("services.agent_runner.agent_bridge.stream", fake_stream)
+
+    chunks = list(stream_agent_response("Hallo", "thread-2"))
+
+    assert chunks == ["Ant", "wort"]
+    assert captured["config"]["configurable"]["thread_id"] == "thread-2"
+    assert captured["stream_mode"] == "messages"
+
+
+def test_stream_agent_response_falls_back_to_state(monkeypatch):
+    def fake_stream(input_data, config, stream_mode):
+        return iter(())
+
+    def fake_get_state(config):
+        return SimpleNamespace(values={
+            "messages": [SimpleNamespace(content="Antwort aus State")]
+        })
+
+    monkeypatch.setattr("services.agent_runner.agent_bridge.stream", fake_stream)
+    monkeypatch.setattr("services.agent_runner.agent_bridge.get_state", fake_get_state)
+
+    assert list(stream_agent_response("Hallo", "thread-3")) == ["Antwort aus State"]
