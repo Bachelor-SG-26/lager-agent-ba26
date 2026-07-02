@@ -1,18 +1,17 @@
 from langchain_core.messages import HumanMessage
 
-from agent.agent import build_agent
+from services import agent_bridge
 
 
 def check_agent_readiness():
     """Prüft den Agent-Start, ohne bereits eine Modellanfrage zu senden."""
-    build_agent()
+    agent_bridge.get_agent()
     return True
 
 
 def ask_agent(message, thread_id):
     """Sendet eine Nachricht an den Agenten und gibt die letzte Antwort zurück."""
-    agent = build_agent()
-    result = agent.invoke(
+    result = agent_bridge.invoke(
         {"messages": [HumanMessage(content=message)]},
         config={"configurable": {"thread_id": thread_id}},
     )
