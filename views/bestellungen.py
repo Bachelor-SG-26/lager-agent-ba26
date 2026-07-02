@@ -86,10 +86,12 @@ def show_bestellungen():
     if _render_status_update(history):
         history = get_order_history()
 
-    df = pd.DataFrame(history)
-    df["gesamtkosten"] = df["gesamtkosten"].map(_format_currency)
+    export_df = pd.DataFrame(history)
+    display_df = export_df.assign(
+        gesamtkosten=export_df["gesamtkosten"].map(_format_currency)
+    )
     st.dataframe(
-        df,
+        display_df,
         width="stretch",
         hide_index=True,
         column_config={
@@ -102,6 +104,17 @@ def show_bestellungen():
             "status": "Status",
         },
     )
+    st.download_button(
+        label="Bestellungen exportieren",
+        data=_build_order_export(export_df),
+        file_name="bestellhistorie.csv",
+        mime="text/csv",
+    )
+
+
+def _build_order_export(df):
+    """Bereitet die Bestellhistorie als UTF-8-CSV für den Download vor."""
+    return df.to_csv(index=False).encode("utf-8")
 
 
 def _render_status_update(history):

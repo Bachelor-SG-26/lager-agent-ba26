@@ -1,3 +1,5 @@
+import pandas as pd
+
 from agent.tools.bestellungen import (
     aktualisiere_bestellstatus,
     check_bestellhistorie,
@@ -16,6 +18,7 @@ from database.queries import (
     get_order_status_summary,
     get_reorder_recommendations,
 )
+from views.bestellungen import _build_order_export
 
 
 def test_create_order_increases_stock(test_database):
@@ -46,6 +49,18 @@ def test_create_order_writes_history_entry(test_database):
 
     assert history[0]["bestell_nr"] == result["order_number"]
     assert history[0]["produkt"] == "Sechskantschraube M8x40 verzinkt"
+
+
+def test_order_export_contains_history_rows(test_database):
+    init_db()
+
+    result = create_order(product_id=1, amount=10)
+    history = get_order_history(limit=1)
+    csv_data = _build_order_export(pd.DataFrame(history)).decode("utf-8")
+
+    assert "bestell_nr,datum,produkt,lieferant,menge,gesamtkosten,status" in csv_data
+    assert result["order_number"] in csv_data
+    assert "Sechskantschraube M8x40 verzinkt" in csv_data
 
 
 def test_reorder_recommendations_include_critical_products(test_database):
