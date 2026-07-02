@@ -1,6 +1,7 @@
 import streamlit as st
 
-from agent.agent import build_agent
+from agent.agent import AgentConfigurationError, build_agent
+from services.agent_runner import check_agent_readiness
 from services.settings import has_agent_api_key, load_agent_settings, save_agent_settings
 
 
@@ -24,9 +25,23 @@ def show_einstellungen():
         model = st.text_input("Modell", value=settings.model)
         submitted = st.form_submit_button("Speichern", width="stretch")
 
-    if not submitted:
-        return
+    if submitted:
+        save_agent_settings(api_key, model)
+        build_agent.cache_clear()
+        st.success("Einstellungen gespeichert.")
 
-    save_agent_settings(api_key, model)
-    build_agent.cache_clear()
-    st.success("Einstellungen gespeichert.")
+    if st.button("Agent testen", width="stretch", disabled=not has_agent_api_key()):
+        _render_agent_readiness()
+
+
+def _render_agent_readiness():
+    """Baut den Agenten lokal auf und zeigt die Startbereitschaft an."""
+    try:
+        check_agent_readiness()
+    except AgentConfigurationError as error:
+        st.error(str(error))
+    except Exception as error:
+        st.error(f"Agent konnte nicht gestartet werden: {error}")
+    else:
+        settings = load_agent_settings()
+        st.success(f"Agent ist startbereit. Modell: {settings.model}")

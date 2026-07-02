@@ -8,7 +8,7 @@ DATA_DIR = Path(os.getenv("DATA_DIR", "data"))
 DB_NAME = DATA_DIR / "lager.db"
 CHECKPOINT_DB = DATA_DIR / "checkpoints.db"
 LOG_DIR = Path(os.getenv("LOG_DIR", "logs"))
-DEFAULT_AGENT_MODEL = os.getenv("NVIDIA_MODEL", "moonshotai/kimi-k2.5")
+DEFAULT_AGENT_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.1-70b-instruct")
 
 APP_PAGES = (
     "Dashboard",

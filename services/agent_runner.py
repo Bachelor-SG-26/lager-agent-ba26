@@ -3,6 +3,12 @@ from langchain_core.messages import HumanMessage
 from agent.agent import build_agent
 
 
+def check_agent_readiness():
+    """Prüft den Agent-Start, ohne bereits eine Modellanfrage zu senden."""
+    build_agent()
+    return True
+
+
 def ask_agent(message, thread_id):
     """Sendet eine Nachricht an den Agenten und gibt die letzte Antwort zurück."""
     agent = build_agent()
