@@ -99,6 +99,11 @@ def continue_after_tool_confirmation(thread_id):
         }
         if next_tools and next_tools.issubset(approved_tools):
             if tool_content:
+                _write_tool_messages(
+                    config,
+                    pending_tool_calls,
+                    "Aktion wurde nicht erneut ausgeführt, weil bereits ein Ergebnis vorliegt.",
+                )
                 return tool_content, []
             continue
 
@@ -113,14 +118,7 @@ def reject_pending_tool_calls(thread_id, reason="Aktion wurde abgebrochen."):
     if not tool_calls:
         return 0
 
-    messages = [
-        ToolMessage(content=reason, tool_call_id=tool_call["id"])
-        for tool_call in tool_calls
-        if tool_call.get("id")
-    ]
-    if messages:
-        agent_bridge.update_state(_agent_config(thread_id), {"messages": messages})
-    return len(messages)
+    return _write_tool_messages(_agent_config(thread_id), tool_calls, reason)
 
 
 def repair_orphan_tool_calls(thread_id):
@@ -228,6 +226,18 @@ def _agent_config(thread_id):
 def _tool_calls_from_message(message):
     """Extrahiert Tool-Aufrufe unabhängig vom konkreten Message-Typ."""
     return getattr(message, "tool_calls", None) or []
+
+
+def _write_tool_messages(config, tool_calls, content):
+    """Schließt offene Tool-Aufrufe mit einer ToolMessage ab."""
+    messages = [
+        ToolMessage(content=content, tool_call_id=tool_call["id"])
+        for tool_call in tool_calls
+        if tool_call.get("id")
+    ]
+    if messages:
+        agent_bridge.update_state(config, {"messages": messages})
+    return len(messages)
 
 
 def _contains_marker(text, markers):

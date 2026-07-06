@@ -179,6 +179,7 @@ def test_continue_after_tool_confirmation_auto_continues_same_tool(monkeypatch):
 
 def test_continue_after_tool_confirmation_returns_tool_result_on_repeat(monkeypatch):
     tool_call = {"id": "call-1", "name": "check_engpaesse", "args": {}}
+    captured = {}
 
     def fake_get_state(config):
         return SimpleNamespace(values={
@@ -191,13 +192,20 @@ def test_continue_after_tool_confirmation_returns_tool_result_on_repeat(monkeypa
             {"agent": {"messages": [SimpleNamespace(content="", tool_calls=[tool_call])]}},
         ))
 
+    def fake_update_state(config, values):
+        captured["config"] = config
+        captured["values"] = values
+
     monkeypatch.setattr("services.agent_runner.agent_bridge.get_state", fake_get_state)
     monkeypatch.setattr("services.agent_runner.agent_bridge.stream", fake_stream)
+    monkeypatch.setattr("services.agent_runner.agent_bridge.update_state", fake_update_state)
 
     answer, pending = continue_after_tool_confirmation("thread-5")
 
     assert answer == "Keine Engpässe gefunden."
     assert pending == []
+    assert captured["config"]["configurable"]["thread_id"] == "thread-5"
+    assert captured["values"]["messages"][0].tool_call_id == "call-1"
 
 
 def test_reject_pending_tool_calls_updates_graph_state(monkeypatch):
