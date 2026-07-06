@@ -1,0 +1,87 @@
+erDiagram
+
+    budget {
+        INTEGER id PK
+        INTEGER quartal
+        INTEGER jahr
+        REAL gesamtbudget
+        REAL verbrauchtes_budget
+    }
+
+    agent_log {
+        INTEGER id PK
+        TEXT tool_name
+        TEXT tool_args
+        TEXT status
+        TEXT datum
+        INTEGER duration_ms
+    }
+
+    lieferanten {
+        INTEGER id PK
+        TEXT name UK
+        TEXT kontakt
+        INTEGER lieferzeit_tage
+        REAL bewertung
+    }
+
+    produkte {
+        INTEGER id PK
+        TEXT name
+        INTEGER bestand
+        INTEGER mindestbestand
+        REAL preis_pro_einheit
+        INTEGER standard_lieferant_id FK
+    }
+
+    produkt_lieferanten {
+        INTEGER id PK
+        INTEGER produkt_id FK
+        INTEGER lieferant_id FK
+        REAL preis
+        INTEGER lieferzeit_tage
+    }
+
+    bestellungen {
+        INTEGER id PK
+        TEXT bestell_nr UK
+        INTEGER produkt_id FK
+        INTEGER lieferant_id FK
+        INTEGER menge
+        REAL gesamtkosten
+        TEXT datum
+    }
+
+    verbrauch {
+        INTEGER id PK
+        INTEGER produkt_id FK
+        INTEGER menge
+        TEXT grund
+        TEXT datum
+    }
+
+    chat_sessions {
+        INTEGER id PK
+        TEXT thread_id UK
+        TEXT titel
+        TEXT erstellt_am
+    }
+
+    chat_nachrichten {
+        INTEGER id PK
+        TEXT thread_id FK
+        TEXT role
+        TEXT content
+        TEXT tools_used
+        TEXT erstellt_am
+    }
+
+    lieferanten ||--o{ produkte : "Standard-Lieferant"
+    lieferanten ||--o{ produkt_lieferanten : "liefert"
+    produkte ||--o{ produkt_lieferanten : "wird beliefert"
+    produkte ||--o{ bestellungen : "wird bestellt"
+    lieferanten ||--o{ bestellungen : "liefert"
+    produkte ||--o{ verbrauch : "Entnahme"
+    chat_sessions ||--o{ chat_nachrichten : "enthält"
+
+    %% budget und agent_log sind eigenständige Tabellen ohne FK-Beziehungen

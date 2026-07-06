@@ -1,0 +1,65 @@
+sequenceDiagram
+    actor User as Benutzer
+    participant UI as Streamlit Chat-UI
+    participant Agent as LangGraph ReAct-Agent
+    participant LLM as NVIDIA LLM
+    participant Tools as Agent-Tools
+    participant DB as SQLite DB
+
+    Note over User, DB: Sequenz 1: Benutzer-Nachricht mit Tool-Aufruf (Human-in-the-Loop)
+
+    User->>UI: Nachricht eingeben
+    UI->>UI: pending_input = text
+    UI->>UI: agent_arbeitet = True
+    UI->>UI: st.rerun()
+    Note over UI: Input-Feld jetzt gesperrt
+    UI->>UI: persist_message(user, text)
+    UI->>Agent: stream(HumanMessage, stream_mode=messages)
+    Agent->>LLM: Nachricht + System-Prompt + History
+    LLM-->>UI: Token-by-Token Streaming (Antwort)
+
+    LLM->>Agent: AIMessage mit tool_calls
+    Note over Agent: interrupt_before=["tools"]
+    Agent-->>UI: State: tool_calls pending
+
+    UI->>UI: render_confirmation()
+    UI->>User: Geplante Aktionen anzeigen
+
+    alt Ausführen
+        User->>UI: Klick "Ausführen"
+        UI->>UI: tool_approved = True
+        UI->>Agent: stream(None, stream_mode=updates)
+
+        Agent->>Tools: Tool-Calls parallel ausführen
+        Tools->>DB: SQL-Operationen
+        DB-->>Tools: Ergebnisse
+        Tools-->>Agent: ToolMessages
+
+        Agent->>LLM: Tool-Ergebnisse
+        LLM->>Agent: Antwort oder weitere tool_calls
+
+        alt Gleicher Tool-Typ
+            Note over UI, Agent: Smart-Approve: auto-akzeptiert
+            Agent->>Tools: Weitere Tool-Calls
+            Tools-->>Agent: Ergebnisse
+        else Anderer Tool-Typ
+            Agent-->>UI: Neue tool_calls
+            UI->>User: Erneute Bestätigung
+        end
+
+        LLM-->>Agent: Finale AIMessage
+        Agent-->>UI: Antwort-Text
+        UI->>UI: persist_message(assistant, text)
+        UI->>User: Antwort anzeigen
+    else Stop
+        User->>UI: Klick "Stop"
+        UI->>UI: stop_requested = True
+        UI->>UI: offene pending Tool-Calls abbrechen
+        UI->>Agent: update_state(ToolMessages: gestoppt/abgebrochen)
+        UI->>UI: reset_state()
+        UI->>User: "Vorgang wurde gestoppt."
+    else Abbrechen
+        User->>UI: Klick "Abbrechen"
+        UI->>Agent: update_state(ToolMessages: abgebrochen)
+        UI->>User: "Aktion wurde abgebrochen"
+    end

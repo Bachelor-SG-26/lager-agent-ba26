@@ -1,79 +1,149 @@
 # lager-agent
 
-KI-gestütztes Lagerverwaltungssystem für Bestandsprüfung, Entnahmen,
-Bestellungen, Budgetkontrolle und Auswertungen.
+Ein Lagerverwaltungssystem mit Streamlit-Oberfläche, SQLite-Datenhaltung und einem LangGraph-basierten Agenten.
+Der Agent prüft Bestände, erkennt Engpässe, vergleicht Lieferanten, erstellt Bestellungen und berechnet Prognosen. Kritische Schritte werden vor der Ausführung vom Nutzer bestätigt.
 
-## Überblick
+## Funktionsumfang
 
-Die Anwendung bündelt Lagerdaten, operative Workflows und einen assistierenden
-Agenten in einer lokalen Streamlit-Oberfläche. Kritische Aktionen wie
-Bestellungen oder Bestandsänderungen werden vom Agenten vorbereitet und vor der
-Ausführung bestätigt.
+### KI-Agent (LangGraph ReAct)
+- 16 spezialisierte Tools für Lager, Budget, Bestellung, Prognose, Lieferanten und Stammdaten
+- Human-in-the-Loop mit Smart-Approve (gleicher Tool-Typ wird im Schritt automatisch fortgesetzt)
+- Batch-Tools für Sammelbestellungen und Sammelprognosen
+- Bestellungen können nach Lieferantenvergleich mit ausgewähltem Lieferanten angelegt werden
+- Persistente Sessions via `SqliteSaver` (`checkpoints.db`)
+- Schutzlimit für zu viele Tool-Calls pro Schritt
+- Recovery bei unterbrochenen Agent-Läufen
 
-## Funktionsbereiche
+### Web-Oberfläche (Streamlit)
+- Chat mit Live-Streaming, Session-Verwaltung und Stop-Button
+- Dashboard
+- Entnahme
+- Bestellhistorie
+- Analysen
+- Metriken
+- Auswertung
+- Einstellungen (Setup erneut aufrufbar)
 
-- Dashboard mit Lagerkennzahlen
-- Lagerbestand, Engpässe und Lagerwert
-- Entnahmen mit Bestandsaktualisierung
-- Budgetverwaltung und Bestellanlage
-- Lieferanten- und Produktstammdaten
-- Auswertungen zu Verbrauch, Budget und Bestellungen
-- Agenten-Chat mit Tool-Bestätigung
-- Einstellungsseite für Modell und API-Key
-- Aktivitätsprotokoll für operative Änderungen
+### Weitere Features
+- Einrichtungsdialog für NVIDIA API Key und Telegram
+- Docker-Setup als bevorzugter Startweg
+- Telegram-Benachrichtigungen inkl. Batch-Sammelmeldung
+- Strukturierte Logs in `logs/lager_agent.log`
 
-## Technologie
+## Projektstruktur
 
-| Bereich | Technologie |
-| --- | --- |
-| Oberfläche | Streamlit |
-| Datenhaltung | SQLite |
-| Agent | LangGraph |
-| Modellanbindung | NVIDIA AI Endpoints |
+```text
+lager-agent/
+  agent/
+    agent.py
+    tools/
+      __init__.py
+      lager.py
+      bestellungen.py
+      budget.py
+      entnahme.py
+      prognose.py
+      lieferanten.py
+      produkte.py
+      update.py
+  database/
+    database.py
+    models.py
+    seed.py
+  services/
+    agent_bridge.py
+    logger.py
+    session.py
+    telegram.py
+  views/
+    chat/
+      __init__.py
+      state.py
+      ui.py
+      processing.py
+      recovery.py
+    sidebar.py
+    dashboard.py
+    entnahme.py
+    bestellhistorie.py
+    analytics.py
+    metriken.py
+    auswertung.py
+    setup.py
+    styles.css
+  docs/
+    ARCHITEKTUR_BERICHT.md
+    CHAT_MODUL.md
+    diagrams/
+      chat_package.mmd
+      er_diagramm.mmd
+      komponentendiagramm.mmd
+      sequenz_chat_hitl.mmd
+      sequenz_bestellung.mmd
+      sequenz_state_recovery.mmd
+  streamlit_app.py
+  Dockerfile
+  docker-compose.yml
+  requirements.txt
+```
+
+## Technologie-Stack
+
+| Komponente | Technologie |
+|---|---|
+| LLM | NVIDIA AI Endpoints (`moonshotai/kimi-k2.6`) |
+| Agent-Framework | LangGraph |
+| UI | Streamlit |
+| Datenbank | SQLite |
+| Logging | Python logging |
 | Tests | pytest |
 
-## Lokaler Start
+## Installation
 
-```powershell
+### Docker (empfohlen)
+
+```bash
+git clone <repository-url>
+cd lager-agent
+docker compose up --build
+```
+
+Danach ist die App unter `http://localhost:8501` erreichbar.
+
+Hinweis: Die Konfiguration erfolgt über den Setup-Dialog. Eine `.env.example` ist für den normalen Docker-Start nicht erforderlich.
+
+### Lokal
+
+```bash
 python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-Die App ist danach unter `http://localhost:8501` erreichbar.
+Beim ersten Start öffnet sich der Einrichtungsdialog. Dort werden der NVIDIA API Key und optional Telegram-Daten gespeichert.
 
-## Agent-Konfiguration
+## Tests
 
-Der Agent kann über die Seite `Einstellungen` konfiguriert werden. Alternativ
-kann eine lokale `.env` im Projektverzeichnis oder im Datenordner genutzt
-werden.
-
-```env
-NVIDIA_API_KEY="..."
-NVIDIA_MODEL="meta/llama-3.1-70b-instruct"
+```bash
+python -m pytest tests/ -v
 ```
 
-Lokale Laufzeitdaten liegen standardmäßig im Ordner `data/` und werden nicht
-versioniert.
+Die Tests nutzen eine isolierte Test-Datenbank und beeinflussen die produktive Datenbank nicht.
 
-## Start mit Docker
+## Datenmodell (Kurzfassung)
 
-```powershell
-docker compose up --build
-```
+Anwendungstabellen:
+- `lieferanten`
+- `produkte`
+- `produkt_lieferanten`
+- `bestellungen`
+- `budget`
+- `verbrauch`
+- `agent_log` (inkl. `duration_ms`)
+- `chat_sessions`
+- `chat_nachrichten`
 
-Die Anwendung nutzt dabei ein persistentes Volume für SQLite-Daten,
-Checkpoints und lokale Einstellungen.
-
-## Projektstruktur
-
-```text
-lager-agent/
-  agent/        LangGraph-Agent und Tools
-  database/     SQLite-Schema, Seed-Daten und Operationen
-  services/     Agent-, Chat- und Einstellungsservices
-  views/        Streamlit-Seiten
-  tests/        Automatisierte Tests
-  docs/         Architektur- und Betriebsnotizen
-```
+Siehe Details in:
+- `docs/ARCHITEKTUR_BERICHT.md`
+- `docs/diagrams/er_diagramm.mmd`

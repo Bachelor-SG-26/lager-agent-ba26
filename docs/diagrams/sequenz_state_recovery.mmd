@@ -1,0 +1,34 @@
+sequenceDiagram
+    actor User as Benutzer
+    participant UI as Chat-UI
+    participant Agent as ReAct-Agent
+
+    Note over User, Agent: Recovery nach Unterbrechung
+
+    User->>UI: Lauf startet (Streaming aktiv)
+    User->>UI: Browser-Reload oder Seitenwechsel
+
+    UI->>UI: recovery.detect_pending_recovery()
+    UI->>Agent: get_state(config)
+    Agent-->>UI: state + letzte messages
+
+    alt state.next mit tool_calls
+        UI->>UI: warte_auf_bestaetigung = True
+        UI->>User: Geplante Aktionen erneut anzeigen
+    else state.next ohne tool_calls
+        UI->>UI: agent_arbeitet = True
+        UI->>UI: recovery.execute_recovery()
+        UI->>Agent: invoke(None) oder letztes Ergebnis lesen
+        Agent-->>UI: Finale Antwort oder neue tool_calls
+    else kein verarbeitbarer State
+        UI->>UI: state.reset_state()
+    end
+
+    Note over User, Agent: Spezialfall INVALID_CHAT_HISTORY
+
+    UI->>UI: Fehler erkannt (fehlende ToolMessage)
+    UI->>Agent: get_state(config)
+    UI->>UI: recovery.repair_orphan_tool_calls()
+    UI->>Agent: update_state(messages=[ToolMessage...])
+    UI->>User: Hinweis "bitte Anfrage erneut senden"
+

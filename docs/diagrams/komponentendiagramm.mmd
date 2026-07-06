@@ -1,0 +1,108 @@
+graph TB
+    subgraph DOCKER["Docker Container"]
+        subgraph UI["Präsentationsschicht - Streamlit"]
+            APP["streamlit_app.py\nRouting und Sidebar"]
+            CSS["views/styles.css\nGlobale UI-Styles"]
+            SETUP["views/setup.py\nEinrichtungsdialog"]
+            CHAT["Chat\nviews/chat/"]
+            subgraph CHATPKG["views/chat/ (Package)"]
+                CHAT_INIT["__init__.py\nshow_chat, Seitenwechsel"]
+                CHAT_UI["ui.py\nRendering, Empty-State, Tool-Pills"]
+                CHAT_PROC["processing.py\nStreaming, Tool-Execution"]
+                CHAT_REC["recovery.py\nError-Handling, Orphan-Repair"]
+                CHAT_STATE["state.py\nSession-State, Logging"]
+            end
+            DASH["views/dashboard.py\nDashboard"]
+            ENTN["views/entnahme.py\nEntnahme"]
+            HIST["views/bestellhistorie.py\nBestellhistorie"]
+            ANAL["views/analytics.py\nAnalysen"]
+            METR["views/metriken.py\nMetriken"]
+            AUSW["views/auswertung.py\nAuswertung"]
+        end
+
+        subgraph AGENT["Agent-Schicht - LangGraph"]
+            CORE["agent/agent.py\nReAct-Agent\nSqliteSaver"]
+            subgraph TOOLS["agent/tools (16 Tools)"]
+                T_LAGER["lager.py"]
+                T_BEST["bestellungen.py"]
+                T_BUDG["budget.py"]
+                T_ENTN["entnahme.py"]
+                T_PROG["prognose.py"]
+                T_LIEF["lieferanten.py"]
+                T_PROD["produkte.py"]
+                T_UPD["update.py"]
+            end
+        end
+
+        subgraph SERVICES["Services"]
+            SESS["services/session.py"]
+            TELE["services/telegram.py"]
+            LOGG["services/logger.py"]
+            BRIDGE["services/agent_bridge.py"]
+            CONF["config.py"]
+        end
+
+        subgraph DATA["SQLite"]
+            DB["database/database.py"]
+            MOD["database/models.py\nSchema + duration_ms"]
+            SEED["database/seed.py"]
+            LAGER_DB[("lager.db")]
+            CHECK_DB[("checkpoints.db")]
+        end
+
+        ENV["/app/data/.env"]
+    end
+
+    subgraph EXTERN["Externe Systeme"]
+        NVIDIA["NVIDIA AI Endpoints"]
+        TELEGRAM["Telegram Bot API"]
+    end
+
+    APP --> CSS
+    APP --> SETUP
+    APP --> CHAT
+    CHAT --> CHATPKG
+    APP --> DASH
+    APP --> ENTN
+    APP --> HIST
+    APP --> ANAL
+    APP --> METR
+    APP --> AUSW
+
+    CHAT_PROC --> BRIDGE
+    CHAT_REC --> BRIDGE
+    CHAT_STATE --> BRIDGE
+    BRIDGE --> CORE
+    CHAT_STATE --> SESS
+    CHAT_INIT --> CHAT_UI
+    CHAT_INIT --> CHAT_PROC
+    CHAT_INIT --> CHAT_REC
+    CHAT_INIT --> CHAT_STATE
+    CHAT_PROC --> CHAT_REC
+    CHAT_PROC --> CHAT_STATE
+    CHAT_UI --> CHAT_STATE
+    CORE --> TOOLS
+    CORE --> CHECK_DB
+    CORE --> NVIDIA
+    CORE --> ENV
+
+    TOOLS --> DB
+    TOOLS --> CONF
+    T_BEST --> TELE
+    TELE --> ENV
+    TELE --> TELEGRAM
+
+    DB --> LAGER_DB
+    MOD --> DB
+    SEED --> DB
+
+    DASH --> DB
+    ENTN --> DB
+    HIST --> DB
+    ANAL --> DB
+    METR --> DB
+    AUSW --> DB
+
+    LOGG -.-> CHATPKG
+    LOGG -.-> TOOLS
+    LOGG -.-> TELE

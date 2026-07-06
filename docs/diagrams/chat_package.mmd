@@ -1,0 +1,47 @@
+graph TB
+    subgraph CHATPKG["views/chat/ (Package)"]
+        INIT["__init__.py\nshow_chat()\nOrchestrierung\nSeitenwechsel-Reload\nStop-Button"]
+        STATE["state.py\nSession-State\ncancel_pending_tools\nstatus_aus_tool_result\nLogging (agent_log)"]
+        UI["ui.py\nrender_message\nrender_chat_history\nrender_confirmation\nrender_empty_state\nTool-Pills"]
+        PROC["processing.py\nStreaming\nTool-Ausführung\nSmart-Approve\nprocess_approval"]
+        REC["recovery.py\ndetect_pending_recovery\nexecute_recovery\nrepair_orphan_tool_calls\nist_api_fehler\nhandle_agent_error"]
+    end
+
+    subgraph EXT["Abhängigkeiten"]
+        BRIDGE["services/agent_bridge.py\nThin Wrapper"]
+        AGENT["agent/agent.py\nReAct-Agent"]
+        SESS["services/session.py\nChat-Persistenz"]
+        LOGGER["services/logger.py"]
+        DB[("lager.db\nagent_log,\nchat_nachrichten")]
+        CFG["config.py\nMAX_TOOL_CALLS_PRO_SCHRITT\nBATCH_TRIGGER_ANZAHL"]
+    end
+
+    INIT --> UI
+    INIT --> PROC
+    INIT --> REC
+    INIT --> STATE
+
+    PROC --> STATE
+    PROC --> REC
+    PROC --> BRIDGE
+
+    REC --> STATE
+    REC --> BRIDGE
+
+    STATE --> BRIDGE
+
+    UI --> STATE
+    UI --> CFG
+
+    STATE --> SESS
+    STATE --> DB
+
+    BRIDGE --> AGENT
+
+    PROC -.-> LOGGER
+    REC -.-> LOGGER
+    STATE -.-> LOGGER
+
+
+    class INIT,STATE,UI,PROC,REC pkg;
+    class BRIDGE,AGENT,SESS,LOGGER,DB,CFG ext;
