@@ -2,13 +2,18 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-ADD requirements.txt .
+# Dependencies installieren
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-ADD . .
+# App-Code kopieren
+COPY . .
 
+# Tests nach Installation der Dependencies ausführen
+RUN python -m pytest tests/ -v
+
+# Persistente Daten (DBs, .env) in /app/data
 ENV DATA_DIR=/app/data
-ENV STREAMLIT_SERVER_HEADLESS=true
 
 EXPOSE 8501
 
