@@ -1,52 +1,79 @@
 # lager-agent
 
 KI-gestütztes Lagerverwaltungssystem für Bestandsprüfung, Entnahmen,
-Bestellungen und Auswertungen.
+Bestellungen, Budgetkontrolle und Auswertungen.
 
-## Ziel
+## Überblick
 
 Die Anwendung bündelt Lagerdaten, operative Workflows und einen assistierenden
-Agenten in einer lokalen Weboberfläche. Kritische Aktionen wie Bestellungen
-sollen nachvollziehbar vorbereitet und vor der Ausführung bestätigt werden.
+Agenten in einer lokalen Streamlit-Oberfläche. Kritische Aktionen wie
+Bestellungen oder Bestandsänderungen werden vom Agenten vorbereitet und vor der
+Ausführung bestätigt.
 
 ## Funktionsbereiche
 
-- Lagerbestand und Engpässe anzeigen
-- Entnahmen erfassen
-- Budget und Bestellungen auswerten
-- Lieferanten vergleichen
-- Agenten-Chat für Lagerfragen und Workflows
-- Lokale Persistenz mit SQLite
+- Dashboard mit Lagerkennzahlen
+- Lagerbestand, Engpässe und Lagerwert
+- Entnahmen mit Bestandsaktualisierung
+- Budgetverwaltung und Bestellanlage
+- Lieferanten- und Produktstammdaten
+- Auswertungen zu Verbrauch, Budget und Bestellungen
+- Agenten-Chat mit Tool-Bestätigung
+- Einstellungsseite für Modell und API-Key
+- Aktivitätsprotokoll für operative Änderungen
 
 ## Technologie
 
 | Bereich | Technologie |
-|---|---|
+| --- | --- |
 | Oberfläche | Streamlit |
 | Datenhaltung | SQLite |
 | Agent | LangGraph |
+| Modellanbindung | NVIDIA AI Endpoints |
 | Tests | pytest |
 
 ## Lokaler Start
 
-```bash
+```powershell
 python -m venv .venv
-.venv\Scripts\activate
+.\.venv\Scripts\activate
 pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
+
+Die App ist danach unter `http://localhost:8501` erreichbar.
+
+## Agent-Konfiguration
+
+Der Agent kann über die Seite `Einstellungen` konfiguriert werden. Alternativ
+kann eine lokale `.env` im Projektverzeichnis oder im Datenordner genutzt
+werden.
+
+```env
+NVIDIA_API_KEY="..."
+NVIDIA_MODEL="meta/llama-3.1-70b-instruct"
+```
+
+Lokale Laufzeitdaten liegen standardmäßig im Ordner `data/` und werden nicht
+versioniert.
+
+## Start mit Docker
+
+```powershell
+docker compose up --build
+```
+
+Die Anwendung nutzt dabei ein persistentes Volume für SQLite-Daten,
+Checkpoints und lokale Einstellungen.
 
 ## Projektstruktur
 
 ```text
 lager-agent/
-  agent/
-  database/
-  services/
-  views/
-  tests/
-  config.py
-  streamlit_app.py
-  requirements.txt
+  agent/        LangGraph-Agent und Tools
+  database/     SQLite-Schema, Seed-Daten und Operationen
+  services/     Agent-, Chat- und Einstellungsservices
+  views/        Streamlit-Seiten
+  tests/        Automatisierte Tests
+  docs/         Architektur- und Betriebsnotizen
 ```
-"# lager-agent-ba26" 

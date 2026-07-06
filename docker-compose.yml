@@ -1,0 +1,15 @@
+name: lager-agent
+
+services:
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      - app-data:/app/data
+    environment:
+      - DATA_DIR=/app/data
+      - STREAMLIT_SERVER_HEADLESS=true
+
+volumes:
+  app-data:
