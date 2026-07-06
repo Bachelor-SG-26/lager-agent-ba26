@@ -1,0 +1,137 @@
+:root {
+    --chat-input-width: min(60vw, 980px);
+}
+
+.block-container {
+    padding-top: 1rem;
+    padding-bottom: 0.75rem;
+}
+
+/* Chat-Input: nur Breite zentrieren, Positionierung überlassen wir Streamlit.
+   Kein "bottom: X !important" mehr — das hat nach Reload Layout-Konflikte ausgeloest. */
+[data-testid="stChatInput"] {
+    max-width: var(--chat-input-width);
+    margin-left: auto;
+    margin-right: auto;
+}
+
+[data-testid="stChatInput"] textarea {
+    border-radius: 12px;
+}
+
+/* Scrollbarer Chat-Bereich */
+.st-key-chat_scroll_container {
+    width: var(--chat-input-width);
+    margin-left: auto;
+    margin-right: auto;
+    height: calc(100vh - 240px);
+    overflow-y: auto;
+    padding-right: 0;
+}
+
+.st-key-chat_scroll_container [data-testid="stVerticalBlock"] {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+/* Spacer-Container nimmt allen freien Platz, drueckt Messages an den Boden.
+   Der Selektor trifft den stElementContainer (nicht das innere Markdown-Div),
+   damit flex-grow korrekt wirkt. */
+.st-key-chat_scroll_container [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(.chat-start-spacer) {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.st-key-chat_scroll_container .chat-start-spacer {
+    height: 100%;
+}
+
+/* Empty-State bei leerem Chat */
+.chat-empty-state {
+    text-align: center;
+    padding: 2.5rem 1rem 1rem 1rem;
+    opacity: 0.75;
+}
+
+.chat-empty-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.chat-empty-sub {
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Tool-Pills unter Agent-Nachrichten */
+.tools-used-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 0.4rem;
+}
+
+.tool-pill {
+    display: inline-block;
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(120, 120, 120, 0.15);
+    border: 1px solid rgba(120, 120, 120, 0.2);
+    opacity: 0.85;
+}
+
+/* Stop-Button: feste Position unten rechts, unabhaengig von Chat-Input-Breite */
+.st-key-stop_icon_btn {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 1002;
+    width: auto;
+}
+
+.st-key-stop_icon_btn button {
+    padding: 0.4rem 1.1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+[data-testid="stMetric"] {
+    border: 1px solid rgba(120, 120, 120, 0.2);
+    border-radius: 12px;
+    padding: 0.6rem 0.8rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.sidebar-brand {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    margin-bottom: 0.1rem;
+}
+
+.sidebar-sub {
+    font-size: 0.8rem;
+    opacity: 0.75;
+    margin-bottom: 0.4rem;
+}
+
+section[data-testid="stSidebar"] button[data-testid="baseButton-primary"] {
+    background: #f8d7da;
+    color: #7a1f26;
+    border: 1px solid #f1aeb5;
+}
+
+section[data-testid="stSidebar"] button[data-testid="baseButton-primary"]:hover {
+    background: #f5c2c7;
+    color: #641a20;
+    border-color: #ea868f;
+}
+
+@media (max-width: 900px) {
+    :root {
+        --chat-input-width: 92vw;
+    }
+}

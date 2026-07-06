@@ -1,4 +1,6 @@
 def create_tables(cursor):
+    """Erstellt alle Tabellen."""
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS lieferanten (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -12,7 +14,7 @@ def create_tables(cursor):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS produkte (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
             bestand INTEGER NOT NULL,
             mindestbestand INTEGER NOT NULL,
             preis_pro_einheit REAL NOT NULL,
@@ -42,7 +44,6 @@ def create_tables(cursor):
             lieferant_id INTEGER,
             menge INTEGER NOT NULL,
             gesamtkosten REAL NOT NULL,
-            status TEXT NOT NULL DEFAULT 'angelegt',
             datum TEXT NOT NULL,
             FOREIGN KEY (produkt_id) REFERENCES produkte(id),
             FOREIGN KEY (lieferant_id) REFERENCES lieferanten(id)
@@ -72,12 +73,13 @@ def create_tables(cursor):
     """)
 
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS aktivitaeten (
+        CREATE TABLE IF NOT EXISTS agent_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            bereich TEXT NOT NULL,
-            beschreibung TEXT NOT NULL,
-            referenz TEXT,
-            erstellt_am TEXT NOT NULL
+            tool_name TEXT NOT NULL,
+            tool_args TEXT,
+            status TEXT NOT NULL,
+            datum TEXT NOT NULL,
+            duration_ms INTEGER
         )
     """)
 
@@ -85,7 +87,7 @@ def create_tables(cursor):
         CREATE TABLE IF NOT EXISTS chat_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             thread_id TEXT NOT NULL UNIQUE,
-            titel TEXT NOT NULL DEFAULT 'Neues Gespräch',
+            titel TEXT NOT NULL DEFAULT 'Neues Gespraech',
             erstellt_am TEXT NOT NULL
         )
     """)
@@ -96,13 +98,8 @@ def create_tables(cursor):
             thread_id TEXT NOT NULL,
             role TEXT NOT NULL,
             content TEXT NOT NULL,
+            tools_used TEXT,
             erstellt_am TEXT NOT NULL,
             FOREIGN KEY (thread_id) REFERENCES chat_sessions(thread_id)
         )
     """)
-
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_produkte_bestand ON produkte(bestand)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_bestellungen_datum ON bestellungen(datum)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_verbrauch_datum ON verbrauch(datum)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_aktivitaeten_erstellt ON aktivitaeten(erstellt_am)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_nachrichten_thread ON chat_nachrichten(thread_id)")

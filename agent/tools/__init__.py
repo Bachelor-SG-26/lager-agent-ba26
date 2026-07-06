@@ -1,46 +1,35 @@
+from agent.tools.lager import check_lagerbestand, check_engpaesse
 from agent.tools.bestellungen import (
-    aktualisiere_bestellstatus,
-    check_bestellhistorie,
-    check_bestellvorschlaege,
-    check_offene_bestellungen,
     erstelle_bestellung,
+    erstelle_bestellung_batch,
+    check_bestellhistorie,
 )
 from agent.tools.budget import check_budget, erstelle_budget
 from agent.tools.entnahme import erfasse_entnahme
-from agent.tools.lieferanten import vergleiche_lieferanten
-from agent.tools.lager import (
-    check_engpaesse,
-    check_lagerbestand,
-    check_lagerwert,
-    korrigiere_lagerbestand,
-)
 from agent.tools.prognose import prognostiziere_bedarf, prognostiziere_bedarf_batch
-from agent.tools.stammdaten import (
-    aktualisiere_lieferant,
-    aktualisiere_produkt,
+from agent.tools.lieferanten import (
+    vergleiche_lieferanten,
+    vergleiche_lieferanten_batch,
     erstelle_lieferant,
-    erstelle_produkt,
 )
-
+from agent.tools.produkte import erstelle_produkt
+from agent.tools.update import aktualisiere_produkt, aktualisiere_lieferant
 
 ALL_TOOLS = [
     check_lagerbestand,
     check_engpaesse,
-    check_lagerwert,
-    korrigiere_lagerbestand,
-    erfasse_entnahme,
     check_budget,
-    erstelle_budget,
-    vergleiche_lieferanten,
+    erstelle_bestellung,
+    erstelle_bestellung_batch,
+    check_bestellhistorie,
+    erfasse_entnahme,
     prognostiziere_bedarf,
     prognostiziere_bedarf_batch,
-    erstelle_bestellung,
-    check_bestellhistorie,
-    check_bestellvorschlaege,
-    check_offene_bestellungen,
-    aktualisiere_bestellstatus,
-    erstelle_lieferant,
+    vergleiche_lieferanten,
+    vergleiche_lieferanten_batch,
     erstelle_produkt,
-    aktualisiere_lieferant,
+    erstelle_lieferant,
+    erstelle_budget,
     aktualisiere_produkt,
+    aktualisiere_lieferant,
 ]

@@ -1,169 +1,139 @@
-import pandas as pd
 import streamlit as st
+import pandas as pd
+from database.database import db_connection
 
-from database.queries import (
-    get_budget_trend,
-    get_consumption_by_product,
-    get_consumption_by_reason,
-    get_consumption_timeline,
-    get_forecast_overview,
-    get_order_cost_summary,
-    get_order_cost_trend,
-)
+
+# ─────────────────────────────────────────
+#  Daten laden
+# ─────────────────────────────────────────
+
+
+def _lade_alle_auswertungsdaten():
+    """Liest alle Auswertungsdaten in einer einzigen Connection."""
+    with db_connection() as (conn, cursor):
+        cursor.execute("""
+            SELECT tool_name, tool_args, status, datum
+            FROM agent_log
+            ORDER BY datum DESC
+        """)
+        log_daten = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT status, COUNT(*) as anzahl
+            FROM agent_log
+            GROUP BY status
+        """)
+        status_counts = {row[0]: row[1] for row in cursor.fetchall()}
+
+        cursor.execute("""
+            SELECT tool_name, COUNT(*) as anzahl
+            FROM agent_log
+            GROUP BY tool_name
+            ORDER BY anzahl DESC
+        """)
+        tool_ranking = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT DATE(datum) as tag, COUNT(*) as anzahl
+            FROM agent_log
+            GROUP BY DATE(datum)
+            ORDER BY tag
+        """)
+        timeline = cursor.fetchall()
+
+    return log_daten, status_counts, tool_ranking, timeline
+
+
+# ─────────────────────────────────────────
+#  Sektionen rendern
+# ─────────────────────────────────────────
+
+
+def _render_kpis(status_counts):
+    """Zeigt KPI-Metriken: Gesamt, Akzeptiert, Abgelehnt, Quote."""
+    gesamt = sum(status_counts.values())
+    akzeptiert = status_counts.get("akzeptiert", 0) + status_counts.get("auto-akzeptiert", 0)
+    abgelehnt = status_counts.get("abgelehnt", 0)
+    quote = (akzeptiert / gesamt * 100) if gesamt > 0 else 0
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Tool-Calls gesamt", gesamt)
+    with col2:
+        st.metric("Akzeptiert", akzeptiert)
+    with col3:
+        st.metric("Abgelehnt", abgelehnt)
+    with col4:
+        st.metric("Akzeptanzquote", f"{quote:.1f}%")
+
+
+def _render_tool_ranking(daten):
+    """Balken-Chart: Welche Tools am häufigsten aufgerufen wurden."""
+    st.subheader("Tool-Nutzung (Ranking)")
+    if not daten:
+        st.info("Noch keine Tool-Aufrufe protokolliert.")
+        return
+
+    df = pd.DataFrame(daten, columns=["Tool", "Aufrufe"])
+    st.bar_chart(df.set_index("Tool"))
+
+
+def _render_status_chart(status_counts):
+    """Balken-Chart: Akzeptiert vs. Abgelehnt."""
+    st.subheader("Akzeptiert vs. Abgelehnt")
+    if not status_counts:
+        return
+
+    rows = [{"Status": k, "Anzahl": v} for k, v in status_counts.items()]
+    st.bar_chart(pd.DataFrame(rows).set_index("Status"))
+
+
+def _render_timeline(daten):
+    """Linien-Chart: Tool-Calls über Zeit."""
+    st.subheader("Aktivität über Zeit")
+    if not daten:
+        st.info("Noch keine Daten vorhanden.")
+        return
+
+    df = pd.DataFrame(daten, columns=["Datum", "Aufrufe"])
+    df["Datum"] = pd.to_datetime(df["Datum"])
+    st.line_chart(df.set_index("Datum"))
+
+
+def _render_log_tabelle(daten):
+    """Tabelle mit allen protokollierten Tool-Calls."""
+    st.subheader("Alle Tool-Calls (Log)")
+    if not daten:
+        st.info("Noch keine Einträge vorhanden.")
+        return
+
+    columns = ["Tool", "Argumente", "Status", "Datum"]
+    st.dataframe(
+        [dict(zip(columns, row)) for row in daten],
+        width="stretch",
+        hide_index=True,
+    )
+
+
+# ─────────────────────────────────────────
+#  Hauptfunktion
+# ─────────────────────────────────────────
 
 
 def show_auswertung():
-    """Rendert Verbrauch, Prognosen, Bestellkosten und Budgetverlauf."""
-    st.title("Auswertung")
-    st.caption("Verbrauch verstehen und Nachbestellungen vorbereiten.")
+    """Auswertungs-Seite mit Agent-Nutzungsstatistiken."""
+    st.title("Agent-Auswertung")
 
-    history_days = st.slider("Historie in Tagen", min_value=30, max_value=180, value=90, step=30)
-    days_ahead = st.slider("Prognosezeitraum", min_value=7, max_value=90, value=30, step=7)
+    log_daten, status_counts, tool_ranking, timeline = _lade_alle_auswertungsdaten()
 
-    _render_consumption_timeline(history_days)
-    _render_consumption(history_days)
-    _render_consumption_by_reason(history_days)
-    _render_forecast(days_ahead, history_days)
-    _render_order_costs(history_days)
-    _render_budget_trend()
-
-
-def _render_consumption_timeline(history_days):
-    """Zeigt den Materialverbrauch als chronologischen Tagesverlauf."""
-    st.subheader("Materialverbrauch über Zeit")
-    timeline = get_consumption_timeline(history_days=history_days)
-    if not timeline:
-        st.info("Für den gewählten Zeitraum liegen keine Verbrauchsdaten vor.")
-        return
-
-    df = pd.DataFrame(timeline)
-    df["datum"] = pd.to_datetime(df["datum"])
-    st.line_chart(df.set_index("datum")[["verbrauch"]])
-
-
-def _render_consumption(history_days):
-    """Zeigt die meistverbrauchten Produkte als Chart und Tabelle."""
-    st.subheader("Verbrauch nach Produkt")
-    consumption = get_consumption_by_product(history_days=history_days)
-    if not consumption:
-        st.info("Für den gewählten Zeitraum liegen keine Entnahmen vor.")
-        return
-
-    df = pd.DataFrame(consumption)
-    st.bar_chart(df.set_index("produkt")[["verbrauch"]])
-    st.dataframe(
-        df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "id": "ID",
-            "produkt": "Produkt",
-            "verbrauch": "Verbrauch",
-            "buchungen": "Buchungen",
-        },
-    )
-
-
-def _render_consumption_by_reason(history_days):
-    """Zeigt, aus welchen Gründen Material entnommen wurde."""
-    st.subheader("Verbrauch nach Grund")
-    consumption = get_consumption_by_reason(history_days=history_days)
-    if not consumption:
-        st.info("Für den gewählten Zeitraum liegen keine Entnahmegründe vor.")
-        return
-
-    df = pd.DataFrame(consumption)
-    st.bar_chart(df.set_index("grund")[["verbrauch"]])
-    st.dataframe(
-        df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "grund": "Grund",
-            "verbrauch": "Verbrauch",
-            "buchungen": "Buchungen",
-        },
-    )
-
-
-def _render_forecast(days_ahead, history_days):
-    st.subheader("Bedarfsprognose")
-    forecasts = get_forecast_overview(days_ahead=days_ahead, history_days=history_days)
-    if not forecasts:
-        st.info("Es sind noch keine Produkte vorhanden.")
-        return
-
-    df = pd.DataFrame(forecasts)
-    df["daily_consumption"] = df["daily_consumption"].map(lambda value: round(value, 2))
-    st.dataframe(
-        df[
-            [
-                "product_name",
-                "stock",
-                "minimum_stock",
-                "forecast_amount",
-                "coverage_days",
-                "recommended_order",
-            ]
-        ],
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "product_name": "Produkt",
-            "stock": "Bestand",
-            "minimum_stock": "Mindestbestand",
-            "forecast_amount": "Prognosebedarf",
-            "coverage_days": "Reichweite",
-            "recommended_order": "Bestellvorschlag",
-        },
-    )
-
-
-def _render_order_costs(history_days):
-    """Zeigt Bestellkosten als Monatsverlauf mit Exportmöglichkeit."""
-    st.subheader("Bestellkosten")
-    summary = get_order_cost_summary(history_days=history_days)
-    trend = get_order_cost_trend(history_days=history_days)
-
-    col_orders, col_costs, col_average = st.columns(3)
-    col_orders.metric("Bestellungen", summary["bestellungen"])
-    col_costs.metric("Gesamtkosten", f"{summary['gesamtkosten']:.2f} €")
-    col_average.metric("Durchschnitt", f"{summary['durchschnittskosten']:.2f} €")
-
-    if not trend:
-        st.info("Für den gewählten Zeitraum liegen keine Bestellungen vor.")
-        return
-
-    df = pd.DataFrame(trend)
-    st.bar_chart(df.set_index("monat")[["gesamtkosten"]])
-    st.download_button(
-        label="Bestellkosten exportieren",
-        data=df.to_csv(index=False).encode("utf-8"),
-        file_name="bestellkosten.csv",
-        mime="text/csv",
-    )
-
-
-def _render_budget_trend():
-    """Zeigt Budgetverbrauch und freien Betrag über die letzten Quartale."""
-    st.subheader("Budget-Verlauf")
-    trend = get_budget_trend(limit=12)
-    if not trend:
-        st.info("Es sind noch keine Budgets vorhanden.")
-        return
-
-    latest = trend[-1]
-    col_total, col_used, col_free = st.columns(3)
-    col_total.metric("Aktuelles Budget", f"{latest['gesamtbudget']:.2f} €")
-    col_used.metric("Verbraucht", f"{latest['verbrauchtes_budget']:.2f} €")
-    col_free.metric("Frei", f"{latest['freies_budget']:.2f} €")
-
-    df = pd.DataFrame(trend)
-    df["periode"] = df.apply(lambda row: f"Q{row['quartal']}/{row['jahr']}", axis=1)
-    chart_df = df.rename(
-        columns={
-            "verbrauchtes_budget": "Verbraucht",
-            "freies_budget": "Frei",
-        }
-    )
-    st.bar_chart(chart_df.set_index("periode")[["Verbraucht", "Frei"]])
+    tab1, tab2, tab3 = st.tabs(["Übersicht", "Nutzung", "Log"])
+    with tab1:
+        _render_kpis(status_counts)
+        st.divider()
+        _render_status_chart(status_counts)
+    with tab2:
+        _render_tool_ranking(tool_ranking)
+        st.divider()
+        _render_timeline(timeline)
+    with tab3:
+        _render_log_tabelle(log_daten)

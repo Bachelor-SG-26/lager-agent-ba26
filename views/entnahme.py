@@ -1,69 +1,118 @@
-import pandas as pd
 import streamlit as st
+import pandas as pd
+from database.database import db_connection
+from datetime import datetime
 
-from database.operations import record_withdrawal
-from database.queries import get_inventory_products, get_withdrawal_history
+
+# ─────────────────────────────────────────
+#  Daten laden
+# ─────────────────────────────────────────
 
 
-def show_entnahme():
-    """Rendert das Formular zum Erfassen manueller Materialentnahmen."""
-    st.title("Entnahme")
-    st.caption("Material aus dem Lager buchen und den Verbrauch dokumentieren.")
+def _lade_produkte(cursor):
+    """Lädt alle Produkte für das Entnahme-Formular."""
+    cursor.execute("""
+        SELECT p.id, p.name, p.bestand
+        FROM produkte p
+        ORDER BY p.name
+    """)
+    return cursor.fetchall()
 
-    products = get_inventory_products()
-    if not products:
-        st.info("Es sind noch keine Produkte vorhanden.")
-        return
 
-    product_options = {
-        f"{product['name']} ({product['bestand']} Stück verfügbar)": product
-        for product in products
+def _lade_entnahme_historie(cursor, limit=50):
+    """Lädt die letzten Entnahmen aus der Datenbank."""
+    cursor.execute("""
+        SELECT v.id, p.name, v.menge, v.grund, v.datum
+        FROM verbrauch v
+        JOIN produkte p ON v.produkt_id = p.id
+        ORDER BY v.datum DESC
+        LIMIT ?
+    """, (limit,))
+    return cursor.fetchall()
+
+
+# ─────────────────────────────────────────
+#  Sektionen rendern
+# ─────────────────────────────────────────
+
+HISTORIE_COLUMNS = ["ID", "Produkt", "Menge", "Grund", "Datum"]
+
+
+def _render_entnahme_formular(produkte):
+    """Zeigt das Entnahme-Formular und verarbeitet Eingaben."""
+    st.subheader("Neue Entnahme erfassen")
+    # Mapping Label -> (produkt_id, bestand). Kein zweites Lookup nötig.
+    produkt_options = {
+        f"{p[1]} (Bestand: {p[2]})": (p[0], p[2]) for p in produkte
     }
 
     with st.form("entnahme_form"):
-        selected_label = st.selectbox("Produkt", list(product_options.keys()))
-        amount = st.number_input("Menge", min_value=1, step=1)
-        reason = st.text_input("Grund", value="Produktion")
-        submitted = st.form_submit_button("Entnahme erfassen")
+        selected = st.selectbox("Produkt", list(produkt_options.keys()))
+        menge = st.number_input("Menge", min_value=1, value=1)
+        grund = st.selectbox(
+            "Grund",
+            ["Produktion", "Wartung", "Montage", "Reparatur", "Prototyp", "Sonstiges"],
+        )
+        submitted = st.form_submit_button("Entnahme erfassen", width="stretch")
 
     if submitted:
-        product = product_options[selected_label]
-        result = record_withdrawal(product["id"], int(amount), reason)
-        if result["success"]:
-            st.success(
-                f"{result['amount']} Stück {result['product_name']} wurden entnommen."
-            )
-            if result["is_low_stock"]:
-                st.warning("Der neue Bestand liegt unter dem Mindestbestand.")
-        else:
-            st.error(result["message"])
+        produkt_id, bestand = produkt_options[selected]
+        _verarbeite_entnahme(produkt_id, menge, bestand, grund)
 
-    history = get_withdrawal_history()
-    st.subheader("Letzte Entnahmen")
-    if not history:
-        st.info("Noch keine Entnahmen erfasst.")
+
+def _verarbeite_entnahme(produkt_id, menge, bestand, grund):
+    """Führt die Entnahme in der Datenbank durch."""
+    if menge > bestand:
+        st.error(f"Nicht genug Bestand. Verfügbar: {bestand} Stück")
         return
 
-    df = pd.DataFrame(history)
-    st.dataframe(
-        df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "datum": "Datum",
-            "produkt": "Produkt",
-            "menge": "Menge",
-            "grund": "Grund",
-        },
-    )
+    try:
+        with db_connection(commit=True) as (conn, cursor):
+            cursor.execute(
+                "UPDATE produkte SET bestand = bestand - ? WHERE id = ?",
+                (menge, produkt_id),
+            )
+            cursor.execute("""
+                INSERT INTO verbrauch (produkt_id, menge, grund, datum)
+                VALUES (?, ?, ?, ?)
+            """, (produkt_id, menge, grund, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        st.success(f"{menge} Stück entnommen. Neuer Bestand: {bestand - menge}")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Fehler bei der Entnahme: {e}")
+
+
+def _render_entnahme_historie(entnahmen):
+    """Zeigt Tabelle und CSV-Export der letzten Entnahmen."""
+    st.subheader("Letzte Entnahmen")
+    if not entnahmen:
+        st.info("Noch keine Entnahmen vorhanden.")
+        return
+
+    df = pd.DataFrame(entnahmen, columns=HISTORIE_COLUMNS)
+    st.dataframe(df, width="stretch", hide_index=True)
+
     st.download_button(
-        label="Entnahmen exportieren",
-        data=_build_withdrawal_export(df),
+        label="Als CSV exportieren",
+        data=df.to_csv(index=False).encode("utf-8"),
         file_name="entnahmen.csv",
         mime="text/csv",
     )
 
 
-def _build_withdrawal_export(df):
-    """Bereitet die Entnahmehistorie als UTF-8-CSV für den Download vor."""
-    return df.to_csv(index=False).encode("utf-8")
+# ─────────────────────────────────────────
+#  Hauptfunktion
+# ─────────────────────────────────────────
+
+
+def show_entnahme():
+    """Entnahme-Seite mit Formular und Historie."""
+    st.title("Materialentnahme")
+
+    with db_connection() as (conn, cursor):
+        produkte = _lade_produkte(cursor)
+        entnahmen = _lade_entnahme_historie(cursor)
+
+    _render_entnahme_formular(produkte)
+    st.divider()
+    _render_entnahme_historie(entnahmen)

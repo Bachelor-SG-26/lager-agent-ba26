@@ -1,71 +1,100 @@
 from langchain_core.tools import tool
+from database.database import db_connection
+from services.logger import get_logger
+from config import LAGERBESTAND_DEFAULT_LIMIT, ENGPASS_DEFAULT_LIMIT
 
-from database.operations import correct_stock
-from database.queries import get_inventory_products, get_inventory_value_summary
-
-
-@tool
-def check_lagerbestand(limit: int = 20) -> str:
-    """Zeigt den aktuellen Lagerbestand mit Status und Standardlieferant."""
-    products = get_inventory_products(limit=limit)
-    if not products:
-        return "Keine Produkte im Lager vorhanden."
-
-    lines = ["Aktueller Lagerbestand:"]
-    for product in products:
-        status = "kritisch" if product["status"] == "kritisch" else "ok"
-        lines.append(
-            f"- [{product['id']}] {product['name']}: "
-            f"{product['bestand']} Stück, Mindestbestand {product['mindestbestand']}, "
-            f"Status {status}, Lieferant: {product['lieferant'] or 'nicht hinterlegt'}"
-        )
-    return "\n".join(lines)
+logger = get_logger("tools.lager")
 
 
 @tool
-def check_engpaesse(limit: int = 20) -> str:
-    """Zeigt Produkte, deren Bestand unter dem Mindestbestand liegt."""
-    products = get_inventory_products(only_low_stock=True, limit=limit)
-    if not products:
-        return "Keine Engpässe gefunden."
+def check_lagerbestand(limit: int = LAGERBESTAND_DEFAULT_LIMIT) -> str:
+    """Zeigt den aktuellen Lagerbestand. Gibt standardmaessig die ersten 20 Produkte zurück.
 
-    lines = ["Kritische Bestände:"]
-    for product in products:
-        fehlmenge = product["mindestbestand"] - product["bestand"]
-        lines.append(
-            f"- [{product['id']}] {product['name']}: "
-            f"{product['bestand']} Stück vorhanden, "
-            f"{fehlmenge} Stück unter Mindestbestand"
-        )
-    return "\n".join(lines)
+    Args:
+        limit: Maximale Anzahl Produkte (Standard: 20, 0 = alle)
+    """
+    try:
+        with db_connection() as (conn, cursor):
+            cursor.execute("SELECT COUNT(*) FROM produkte")
+            gesamt = cursor.fetchone()[0]
+
+            query = """
+                SELECT p.id, p.name, p.bestand, p.mindestbestand, p.preis_pro_einheit, l.name
+                FROM produkte p
+                JOIN lieferanten l ON p.standard_lieferant_id = l.id
+                ORDER BY p.name
+            """
+            if limit > 0:
+                query += f" LIMIT {limit}"
+            cursor.execute(query)
+            produkte = cursor.fetchall()
+
+        angezeigt = len(produkte)
+        ergebnis = f"Lagerbestand ({angezeigt} von {gesamt} Produkten):\n"
+        for p in produkte:
+            status = "[KRITISCH]" if p[2] < p[3] else "[OK]"
+            ergebnis += (
+                f"  [ID:{p[0]}] {p[1]}: {p[2]} Stück "
+                f"| Min: {p[3]} | {p[4]:.2f} Euro/Stück "
+                f"| Lieferant: {p[5]} {status}\n"
+            )
+
+        if limit > 0 and angezeigt < gesamt:
+            ergebnis += f"\nHinweis: {gesamt - angezeigt} weitere Produkte nicht angezeigt. Rufe mit limit=0 für alle auf."
+
+        return ergebnis
+    except Exception as e:
+        logger.error("Fehler bei Lagerbestand-Abfrage: %s", e)
+        return f"Fehler beim Laden des Lagerbestands: {e}"
 
 
 @tool
-def check_lagerwert() -> str:
-    """Zeigt den aktuellen Warenwert des Lagerbestands."""
-    summary = get_inventory_value_summary()
-    return (
-        "Lagerwert:\n"
-        f"- Produkte: {summary['products']}\n"
-        f"- Einheiten: {summary['total_units']}\n"
-        f"- Gesamtwert: {_format_currency(summary['total_value'])}\n"
-        f"- Kritischer Wert: {_format_currency(summary['critical_value'])}\n"
-        f"- Durchschnittspreis: {_format_currency(summary['average_unit_price'])}"
-    )
+def check_engpaesse(limit: int = ENGPASS_DEFAULT_LIMIT) -> str:
+    """Zeigt Produkte mit kritisch niedrigem Bestand, sortiert nach Dringlichkeit.
 
+    Args:
+        limit: Maximale Anzahl Produkte (Standard: 15, 0 = alle)
+    """
+    try:
+        with db_connection() as (conn, cursor):
+            cursor.execute(
+                "SELECT COUNT(*) FROM produkte WHERE bestand < mindestbestand"
+            )
+            gesamt = cursor.fetchone()[0]
 
-@tool
-def korrigiere_lagerbestand(produkt_id: int, neuer_bestand: int, grund: str = "Inventur") -> str:
-    """Korrigiert den Lagerbestand eines Produkts nach einer Zählung."""
-    result = correct_stock(produkt_id, neuer_bestand, grund)
-    if not result["success"]:
-        return f"Fehler: {result['message']}"
+            query = """
+                SELECT p.id, p.name, p.bestand, p.mindestbestand, p.preis_pro_einheit, l.name
+                FROM produkte p
+                JOIN lieferanten l ON p.standard_lieferant_id = l.id
+                WHERE p.bestand < p.mindestbestand
+                ORDER BY (p.mindestbestand - p.bestand) DESC
+            """
+            if limit > 0:
+                query += f" LIMIT {limit}"
+            cursor.execute(query)
+            engpaesse = cursor.fetchall()
 
-    return (
-        f"Bestand für {result['product_name']} korrigiert: "
-        f"{result['old_stock']} -> {result['new_stock']} Stück"
-    )
+        if not engpaesse:
+            return "Keine Engpässe — alle Bestaende sind ausreichend."
 
+        gesamtkosten = 0
+        angezeigt = len(engpaesse)
+        ergebnis = f"Engpässe ({angezeigt} von {gesamt}, sortiert nach Dringlichkeit):\n"
+        for p in engpaesse:
+            fehlmenge = p[3] - p[2]
+            kosten = fehlmenge * p[4]
+            gesamtkosten += kosten
+            ergebnis += (
+                f"  [ID:{p[0]}] {p[1]}: {p[2]}/{p[3]} Stück "
+                f"(fehlen: {fehlmenge}) | Kosten: {kosten:.2f} Euro | {p[5]}\n"
+            )
 
-def _format_currency(value):
-    return f"{value:.2f} €"
+        ergebnis += f"\nGeschaetzte Kosten für angezeigte Nachbestellungen: {gesamtkosten:.2f} Euro"
+
+        if limit > 0 and angezeigt < gesamt:
+            ergebnis += f"\nHinweis: {gesamt - angezeigt} weitere Engpässe nicht angezeigt. Rufe mit limit=0 für alle auf."
+
+        return ergebnis
+    except Exception as e:
+        logger.error("Fehler bei Engpass-Abfrage: %s", e)
+        return f"Fehler beim Laden der Engpässe: {e}"

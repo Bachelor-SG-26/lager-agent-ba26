@@ -1,62 +1,103 @@
+import uuid
+from pathlib import Path
 import streamlit as st
-
-from config import APP_PAGES, PROJECT_NAME
-from database.database import init_db
-from views.agent import show_agent
-from views.auswertung import show_auswertung
-from views.bestellungen import show_bestellungen
-from views.budget import show_budget
-from views.dashboard import show_dashboard
-from views.einstellungen import show_einstellungen
-from views.entnahme import show_entnahme
-from views.lager import show_lager
-from views.placeholder import show_placeholder
-from views.protokoll import show_protokoll
-from views.sidebar import render_sidebar
-from views.stammdaten import show_stammdaten
-
+from views.setup import ist_konfiguriert, show_setup
 
 st.set_page_config(
-    page_title="lager-agent",
+    page_title="Lager-Agent",
     page_icon=None,
     layout="wide",
 )
 
 
-def main():
-    if "_db_initialized" not in st.session_state:
-        init_db()
-        st.session_state._db_initialized = True
+STYLE_PATH = Path(__file__).resolve().parent / "views" / "styles.css"
 
-    if "seite" not in st.session_state:
-        st.session_state.seite = APP_PAGES[0]
 
-    render_sidebar(PROJECT_NAME, APP_PAGES)
+def _apply_global_styles():
+    """Globale UI-Styles für kompaktere, konsistentere Darstellung."""
+    if not STYLE_PATH.exists():
+        return
+    css = STYLE_PATH.read_text(encoding="utf-8")
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
-    page = st.session_state.seite
-    if page == "Dashboard":
-        show_dashboard()
-    elif page == "Lager":
-        show_lager()
-    elif page == "Entnahme":
-        show_entnahme()
-    elif page == "Budget":
-        show_budget()
-    elif page == "Bestellungen":
-        show_bestellungen()
-    elif page == "Stammdaten":
-        show_stammdaten()
-    elif page == "Agent":
-        show_agent()
-    elif page == "Einstellungen":
-        show_einstellungen()
-    elif page == "Protokoll":
-        show_protokoll()
-    elif page == "Auswertung":
-        show_auswertung()
+
+_apply_global_styles()
+
+# Setup beim ersten Start
+if not ist_konfiguriert() and not st.session_state.get("_setup_done"):
+    show_setup()
+    st.stop()
+
+# Imports erst nach Setup, da agent.py die .env lädt
+from database.database import init_db  # noqa: E402
+from views.chat import show_chat  # noqa: E402
+from views.dashboard import show_dashboard  # noqa: E402
+from views.bestellhistorie import show_bestellhistorie  # noqa: E402
+from views.analytics import show_analytics  # noqa: E402
+from views.metriken import show_metriken  # noqa: E402
+from views.entnahme import show_entnahme  # noqa: E402
+from views.auswertung import show_auswertung  # noqa: E402
+from views.sidebar import render_sidebar  # noqa: E402
+from services.session import (  # noqa: E402
+    erstelle_session,
+    lade_letzte_session,
+    lade_nachrichten,
+)
+
+# Datenbank initialisieren
+if "_db_initialized" not in st.session_state:
+    init_db()
+    st.session_state._db_initialized = True
+
+# Session State initialisieren
+if "config" not in st.session_state:
+    letzte = lade_letzte_session()
+    if letzte:
+        thread_id = letzte
     else:
-        show_placeholder(page)
+        thread_id = str(uuid.uuid4())
+        erstelle_session(thread_id)
+    st.session_state.config = {"configurable": {"thread_id": thread_id}}
+
+if "messages" not in st.session_state:
+    st.session_state.messages = lade_nachrichten(
+        st.session_state.config["configurable"]["thread_id"]
+    )
+
+if "warte_auf_bestaetigung" not in st.session_state:
+    st.session_state.warte_auf_bestaetigung = False
+
+if "pending_tool_calls" not in st.session_state:
+    st.session_state.pending_tool_calls = []
+
+if "agent_arbeitet" not in st.session_state:
+    st.session_state.agent_arbeitet = False
+
+if "seite" not in st.session_state:
+    st.session_state.seite = "Chat"
 
 
-if __name__ == "__main__":
-    main()
+render_sidebar()
+
+
+seite = st.session_state.seite
+
+if seite == "Chat":
+    show_chat()
+elif seite == "Dashboard":
+    show_dashboard()
+elif seite == "Bestellhistorie":
+    show_bestellhistorie()
+elif seite == "Analysen":
+    show_analytics()
+elif seite == "Metriken":
+    show_metriken()
+elif seite == "Entnahme":
+    show_entnahme()
+elif seite == "Auswertung":
+    show_auswertung()
+elif seite == "Einstellungen":
+    show_setup()
+
+# Letzte Seite merken für Seitenwechsel-Erkennung im Chat
+st.session_state._letzte_seite = seite
