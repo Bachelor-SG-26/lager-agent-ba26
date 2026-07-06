@@ -61,6 +61,7 @@ def build_agent():
         model=model,
         tools=ALL_TOOLS,
         prompt=SYSTEM_PROMPT,
+        interrupt_before=["tools"],
         checkpointer=checkpointer,
         name="lager_agent",
     )
