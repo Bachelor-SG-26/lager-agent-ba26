@@ -53,17 +53,22 @@ def stop_requested():
 
 
 def log_tool_calls(tool_calls, status, duration_ms_by_call_id=None):
-    """Schreibt Tool-Call-Ereignisse in die agent_log Tabelle."""
+    """Schreibt Tool-Call-Ereignisse mit eindeutiger Aufruf-ID in agent_log."""
     duration_ms_by_call_id = duration_ms_by_call_id or {}
     try:
         datum = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with db_connection(commit=True) as (conn, cursor):
             for tc in tool_calls:
                 args_str = json.dumps(tc["args"], ensure_ascii=False) if tc.get("args") else ""
-                duration_ms = duration_ms_by_call_id.get(tc.get("id"))
+                tool_call_id = tc.get("id")
+                duration_ms = duration_ms_by_call_id.get(tool_call_id)
                 cursor.execute(
-                    "INSERT INTO agent_log (tool_name, tool_args, status, datum, duration_ms) VALUES (?, ?, ?, ?, ?)",
-                    (tc["name"], args_str, status, datum, duration_ms),
+                    """
+                    INSERT INTO agent_log
+                        (tool_call_id, tool_name, tool_args, status, datum, duration_ms)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (tool_call_id, tc["name"], args_str, status, datum, duration_ms),
                 )
     except Exception as e:
         logger.error("Fehler beim Loggen der Tool-Calls: %s", e)

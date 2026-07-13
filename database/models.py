@@ -75,6 +75,7 @@ def create_tables(cursor):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS agent_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tool_call_id TEXT,
             tool_name TEXT NOT NULL,
             tool_args TEXT,
             status TEXT NOT NULL,

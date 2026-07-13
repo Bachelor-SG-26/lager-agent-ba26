@@ -8,7 +8,7 @@ EXECUTION_STATUSES = ("ausgefuehrt", "fehlgeschlagen", "abgelehnt_budget")
 
 def _lade_tool_status(zeitraum_tage):
     query = """
-        SELECT tool_name, status, datum, duration_ms
+        SELECT tool_call_id, tool_name, status, datum, duration_ms
         FROM agent_log
         WHERE datum >= datetime('now', ?)
           AND status IN ('ausgefuehrt', 'fehlgeschlagen', 'abgelehnt_budget')
@@ -148,6 +148,15 @@ def _render_detail_table(log_df):
     anzeigen["datum"] = anzeigen["datum"].dt.strftime("%Y-%m-%d %H:%M:%S")
     if "duration_ms" in anzeigen.columns:
         anzeigen["duration_ms"] = anzeigen["duration_ms"].fillna(0).astype(int)
+    anzeigen = anzeigen.rename(
+        columns={
+            "tool_call_id": "Aufruf-ID",
+            "tool_name": "Tool",
+            "status": "Status",
+            "datum": "Datum",
+            "duration_ms": "Dauer (ms)",
+        }
+    )
     st.dataframe(anzeigen, width="stretch", hide_index=True)
 
 

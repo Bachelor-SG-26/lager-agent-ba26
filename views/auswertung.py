@@ -12,30 +12,36 @@ def _lade_alle_auswertungsdaten():
     """Liest alle Auswertungsdaten in einer einzigen Connection."""
     with db_connection() as (conn, cursor):
         cursor.execute("""
-            SELECT tool_name, tool_args, status, datum
+            SELECT tool_call_id, tool_name, tool_args, status, datum
             FROM agent_log
             ORDER BY datum DESC
         """)
         log_daten = cursor.fetchall()
 
         cursor.execute("""
-            SELECT status, COUNT(*) as anzahl
+            SELECT status,
+                   COUNT(DISTINCT COALESCE(tool_call_id, 'legacy-' || id)) as anzahl
             FROM agent_log
+            WHERE status IN ('akzeptiert', 'auto-akzeptiert', 'abgelehnt')
             GROUP BY status
         """)
         status_counts = {row[0]: row[1] for row in cursor.fetchall()}
 
         cursor.execute("""
-            SELECT tool_name, COUNT(*) as anzahl
+            SELECT tool_name,
+                   COUNT(DISTINCT COALESCE(tool_call_id, 'legacy-' || id)) as anzahl
             FROM agent_log
+            WHERE status IN ('akzeptiert', 'auto-akzeptiert', 'abgelehnt')
             GROUP BY tool_name
             ORDER BY anzahl DESC
         """)
         tool_ranking = cursor.fetchall()
 
         cursor.execute("""
-            SELECT DATE(datum) as tag, COUNT(*) as anzahl
+            SELECT DATE(datum) as tag,
+                   COUNT(DISTINCT COALESCE(tool_call_id, 'legacy-' || id)) as anzahl
             FROM agent_log
+            WHERE status IN ('akzeptiert', 'auto-akzeptiert', 'abgelehnt')
             GROUP BY DATE(datum)
             ORDER BY tag
         """)
@@ -51,9 +57,9 @@ def _lade_alle_auswertungsdaten():
 
 def _render_kpis(status_counts):
     """Zeigt KPI-Metriken: Gesamt, Akzeptiert, Abgelehnt, Quote."""
-    gesamt = sum(status_counts.values())
     akzeptiert = status_counts.get("akzeptiert", 0) + status_counts.get("auto-akzeptiert", 0)
     abgelehnt = status_counts.get("abgelehnt", 0)
+    gesamt = akzeptiert + abgelehnt
     quote = (akzeptiert / gesamt * 100) if gesamt > 0 else 0
 
     col1, col2, col3, col4 = st.columns(4)
@@ -80,11 +86,19 @@ def _render_tool_ranking(daten):
 
 def _render_status_chart(status_counts):
     """Balken-Chart: Akzeptiert vs. Abgelehnt."""
-    st.subheader("Akzeptiert vs. Abgelehnt")
+    st.subheader("Freigabe-Status")
     if not status_counts:
         return
 
-    rows = [{"Status": k, "Anzahl": v} for k, v in status_counts.items()]
+    labels = {
+        "akzeptiert": "Akzeptiert",
+        "auto-akzeptiert": "Automatisch akzeptiert",
+        "abgelehnt": "Abgelehnt",
+    }
+    rows = [
+        {"Status": labels.get(status, status), "Anzahl": anzahl}
+        for status, anzahl in status_counts.items()
+    ]
     st.bar_chart(pd.DataFrame(rows).set_index("Status"))
 
 
@@ -107,7 +121,7 @@ def _render_log_tabelle(daten):
         st.info("Noch keine Einträge vorhanden.")
         return
 
-    columns = ["Tool", "Argumente", "Status", "Datum"]
+    columns = ["Aufruf-ID", "Tool", "Argumente", "Status", "Datum"]
     st.dataframe(
         [dict(zip(columns, row)) for row in daten],
         width="stretch",

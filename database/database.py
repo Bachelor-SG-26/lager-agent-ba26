@@ -63,12 +63,18 @@ def init_db():
 
 
 def _migrate_agent_log(cursor):
-    """Fuegt neue Spalten in agent_log hinzu, ohne bestehende Daten zu löschen."""
+    """Fügt neue Spalten in agent_log hinzu, ohne bestehende Daten zu löschen."""
     cursor.execute("PRAGMA table_info(agent_log)")
     columns = {row[1] for row in cursor.fetchall()}
-    if "duration_ms" not in columns:
-        cursor.execute("ALTER TABLE agent_log ADD COLUMN duration_ms INTEGER")
-        logger.info("Schema-Migration: agent_log.duration_ms hinzugefuegt")
+    migrations = {
+        "duration_ms": "INTEGER",
+        "tool_call_id": "TEXT",
+    }
+    for column, column_type in migrations.items():
+        if column in columns:
+            continue
+        cursor.execute(f"ALTER TABLE agent_log ADD COLUMN {column} {column_type}")
+        logger.info("Schema-Migration: agent_log.%s hinzugefügt", column)
 
 
 if __name__ == "__main__":
