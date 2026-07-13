@@ -69,7 +69,9 @@ Tabellen:
 ## 5. Agent und Tools
 
 `agent/agent.py`:
-- Modell: `moonshotai/kimi-k2.6`
+- Modell: über `NVIDIA_MODEL` konfigurierbar, aktiver Standard `meta/llama-3.1-70b-instruct`
+- Aktive Modelle werden über den NVIDIA API Key geladen und in den Einstellungen ausgewählt.
+- Der Agent wird verzögert aufgebaut; nach einem Modellwechsel wird sein Cache geleert.
 - Prompt-Regeln für Batch-Nutzung, Lieferantenvergleich, Budgetprüfung und Format
 - HITL via `interrupt_before=["tools"]`
 

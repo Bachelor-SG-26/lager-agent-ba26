@@ -34,7 +34,7 @@ Regel: `ui.py` darf weder den Agenten noch die DB direkt ansprechen; es liest
 nur aus `st.session_state` und ruft `state.py`-Helfer auf.
 
 Alle Agent-Aufrufe laufen über `services/agent_bridge.py`, einen dünnen
-Wrapper um `agent.agent.agent`. Dadurch hängen die Chat-Module nicht
+Wrapper um `agent.agent.build_agent()`. Dadurch hängen die Chat-Module nicht
 direkt an der LangGraph-API und lassen sich in Tests einfach stubben.
 
 ## 3. Rendering-Reihenfolge (wichtig)

@@ -91,7 +91,7 @@ lager-agent/
 
 | Komponente | Technologie |
 |---|---|
-| LLM | NVIDIA AI Endpoints (`moonshotai/kimi-k2.6`) |
+| LLM | NVIDIA AI Endpoints (Modell in den Einstellungen auswählbar) |
 | Agent-Framework | LangGraph |
 | UI | Streamlit |
 | Datenbank | SQLite |
@@ -121,7 +121,7 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-Beim ersten Start öffnet sich der Einrichtungsdialog. Dort werden der NVIDIA API Key und optional Telegram-Daten gespeichert.
+Beim ersten Start öffnet sich der Einrichtungsdialog. Dort werden der NVIDIA API Key, das gewünschte KI-Modell und optional Telegram-Daten gespeichert. Die Modellliste wird direkt über den hinterlegten NVIDIA-Schlüssel geladen und kann später in den Einstellungen aktualisiert werden. Die Erreichbarkeit der Auswahl lässt sich vor dem Speichern prüfen.
 
 ## Tests
 

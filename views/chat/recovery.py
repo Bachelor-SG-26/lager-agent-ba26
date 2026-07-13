@@ -29,6 +29,14 @@ def ist_api_fehler(error_msg):
     )
 
 
+def ist_modellzugriffsfehler(error_msg):
+    """Prüft, ob das ausgewählte Modell für den Account nicht verfügbar ist."""
+    text = (error_msg or "").lower()
+    return "404" in text and (
+        "not found" in text or "integrate.api.nvidia.com" in text
+    )
+
+
 def ist_invalid_chat_history(error_msg):
     """Prüft, ob der Graph-Checkpoint unvollständige Tool-Calls enthält."""
     text = (error_msg or "").lower()
@@ -113,6 +121,15 @@ def handle_agent_error(error: Exception) -> bool:
                 "Die Unterhaltung hat einen ungültigen Tool-Status. Bitte starte ein "
                 "neues Gespräch in der Sidebar.",
             )
+        reset_state()
+        return True
+    if ist_modellzugriffsfehler(error_msg):
+        logger.warning("Ausgewähltes NVIDIA-Modell nicht verfügbar.")
+        persist_message(
+            "assistant",
+            "Das ausgewählte KI-Modell ist für diesen NVIDIA-Zugang nicht verfügbar. "
+            "Bitte wähle in den Einstellungen ein anderes Modell aus.",
+        )
         reset_state()
         return True
     if ist_api_fehler(error_msg):

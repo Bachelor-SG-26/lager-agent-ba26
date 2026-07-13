@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 # agent.agent muss importierbar sein (wird in views/chat über agent_bridge geladen)
 fake_agent_module = types.ModuleType("agent.agent")
-fake_agent_module.agent = SimpleNamespace()
+fake_agent_module.build_agent = lambda: SimpleNamespace()
 sys.modules.setdefault("agent.agent", fake_agent_module)
 
 from views.chat import recovery, state  # noqa: E402
@@ -66,6 +66,13 @@ def test_ist_api_fehler_nichts():
     assert recovery.ist_api_fehler("normaler Fehler") is False
 
 
+def test_ist_modellzugriffsfehler_erkennt_nvidia_404():
+    error = "[404] Not Found Function 'abc': Not found for account 'xyz'"
+    assert recovery.ist_modellzugriffsfehler(error) is True
+    assert recovery.ist_modellzugriffsfehler("[404] Not Found") is True
+    assert recovery.ist_modellzugriffsfehler("Produkt nicht gefunden") is False
+
+
 # ─────────────────────────────────────────
 #  handle_agent_error Routing
 # ─────────────────────────────────────────
@@ -88,6 +95,25 @@ def test_handle_agent_error_api_fehler_wird_behandelt(monkeypatch):
     assert len(captured["messages"]) == 1
     msg = captured["messages"][0]["content"]
     assert "KI-API" in msg or "API" in msg
+
+
+def test_handle_agent_error_modellzugriff_wird_behandelt(monkeypatch):
+    session_state = AttrDict(
+        {
+            "config": {"configurable": {"thread_id": "t"}},
+            "messages": [],
+        }
+    )
+    captured = _patch(monkeypatch, session_state)
+
+    err = Exception("[404] Function 'abc': Not found for account 'xyz'")
+    handled = recovery.handle_agent_error(err)
+
+    assert handled is True
+    assert captured["resets"] == 1
+    msg = captured["messages"][0]["content"]
+    assert "Einstellungen" in msg
+    assert "account" not in msg.lower()
 
 
 def test_handle_agent_error_invalid_history_mit_repair(monkeypatch):
