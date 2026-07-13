@@ -33,3 +33,6 @@ ALL_TOOLS = [
     aktualisiere_produkt,
     aktualisiere_lieferant,
 ]
+
+TOOL_NAMES = tuple(tool.name for tool in ALL_TOOLS)
+TOOL_COUNT = len(TOOL_NAMES)
