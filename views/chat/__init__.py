@@ -18,7 +18,7 @@ from views.chat.state import (
 )
 from views.chat.ui import render_chat_history, render_confirmation
 
-# Re-Exports für Rueckwaertskompatibilitaet
+# Re-Exports für Rückwärtskompatibilität
 __all__ = [
     "show_chat",
     "render_chat_history",
@@ -41,7 +41,7 @@ def _neues_gespraech():
 
 
 def _reload_bei_seitenwechsel():
-    """Loest einen echten Browser-Reload aus, wenn der Chat frisch betreten wird.
+    """Löst einen echten Browser-Reload aus, wenn der Agent frisch betreten wird.
 
     Hintergrund: Streamlits st.rerun() reicht nicht, weil einige UI-Elemente
     (z.B. st.chat_input) nach Seitenwechseln manchmal nicht sauber re-mounten.
@@ -51,8 +51,8 @@ def _reload_bei_seitenwechsel():
     ist session_state leer — die Bedingung kann nicht nochmal ausloesen.
     """
     letzte = st.session_state.get("_letzte_seite")
-    if letzte is not None and letzte != "Chat":
-        st.session_state._letzte_seite = "Chat"
+    if letzte is not None and letzte != "Agent":
+        st.session_state._letzte_seite = "Agent"
         # components.html rendert in einem echten iframe und führt das Script
         # zuverlässig beim ersten Render aus. st.html sanitized/verzögert
         # Scripts teilweise, wodurch der Reload erst beim zweiten Klick feuerte.
@@ -65,7 +65,7 @@ def _reload_bei_seitenwechsel():
 
 
 def _render_stop_button():
-    """Stop-Button für laufende Vorgaenge (fix unten rechts per CSS)."""
+    """Stop-Button für laufende Vorgänge (fix unten rechts per CSS)."""
     if st.button("Stopp", key="stop_icon_btn", type="secondary", help="Vorgang abbrechen"):
         st.session_state.stop_requested = True
         if st.session_state.warte_auf_bestaetigung and st.session_state.pending_tool_calls:
