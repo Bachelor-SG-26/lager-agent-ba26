@@ -59,7 +59,7 @@ def _formatiere_vergleich(produkt_name, lieferanten):
         if l[4]:
             marker = "Standard"
         elif l[1] == guenstigster:
-            marker = "Guenstigster"
+            marker = "Günstigster"
         else:
             marker = ""
         ergebnis += (
@@ -68,7 +68,7 @@ def _formatiere_vergleich(produkt_name, lieferanten):
         )
 
     best_name = _berechne_beste_empfehlung(lieferanten)
-    ergebnis += f"\n  Empfehlung: {best_name} (bestes Preis-Leistungs-Verhaeltnis)"
+    ergebnis += f"\n  Empfehlung: {best_name} (bestes Preis-Leistungs-Verhältnis)"
     return ergebnis
 
 

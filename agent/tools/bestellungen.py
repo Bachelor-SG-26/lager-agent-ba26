@@ -74,7 +74,7 @@ def _lade_bestellprodukt(cursor, produkt_id, lieferant_id=None):
 
     ziel_lieferant_id = lieferant_id if lieferant_id is not None else produkt[2]
     if ziel_lieferant_id is None:
-        return None, f"Fehler: Fuer Produkt '{produkt[0]}' ist kein Standardlieferant hinterlegt."
+        return None, f"Fehler: Für Produkt '{produkt[0]}' ist kein Standardlieferant hinterlegt."
 
     cursor.execute("""
         SELECT l.id, l.name, pl.preis
@@ -86,7 +86,7 @@ def _lade_bestellprodukt(cursor, produkt_id, lieferant_id=None):
 
     if not lieferant:
         return None, (
-            f"Fehler: Lieferant mit ID {ziel_lieferant_id} ist fuer "
+            f"Fehler: Lieferant mit ID {ziel_lieferant_id} ist für "
             f"Produkt '{produkt[0]}' nicht hinterlegt."
         )
 

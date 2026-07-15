@@ -27,7 +27,7 @@ def aktualisiere_produkt(
     if mindestbestand is not None and mindestbestand < 0:
         return "Fehler: Mindestbestand darf nicht negativ sein."
     if preis_pro_einheit is not None and preis_pro_einheit <= 0:
-        return "Fehler: Preis muss groesser als 0 sein."
+        return "Fehler: Preis muss größer als 0 sein."
     if bestand is not None and bestand < 0:
         return "Fehler: Bestand darf nicht negativ sein."
 

@@ -49,4 +49,4 @@ class TestCheckEngpaesse:
     def test_zeigt_gesamtkosten(self):
         """Die Gesamtkosten für Nachbestellungen sollten berechnet werden."""
         result = check_engpaesse.invoke({})
-        assert "Geschaetzte Kosten für angezeigte Nachbestellungen" in result
+        assert "Geschätzte Kosten für angezeigte Nachbestellungen" in result

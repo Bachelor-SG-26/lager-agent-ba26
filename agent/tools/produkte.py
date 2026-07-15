@@ -20,6 +20,8 @@ def erstelle_produkt(
         preis_pro_einheit: Preis pro Einheit in Euro
         lieferant_id: ID des Standard-Lieferanten
     """
+    if not name.strip():
+        return "Fehler: Produktname darf nicht leer sein."
     if mindestbestand < 0:
         return "Fehler: Mindestbestand darf nicht negativ sein."
     if preis_pro_einheit <= 0:

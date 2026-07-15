@@ -52,12 +52,12 @@ def _render_kpis(df):
 
 
 def _render_kritische_chart(df):
-    """Balken-Chart: Kritische Bestaende vs. Mindestbestand."""
+    """Balken-Chart: Kritische Bestände vs. Mindestbestand."""
     kritische = df[df["Status"] == "KRITISCH"]
     if kritische.empty:
         return
 
-    st.subheader("Kritische Bestaende vs. Mindestbestand")
+    st.subheader("Kritische Bestände vs. Mindestbestand")
     st.bar_chart(kritische.set_index("Name")[["Bestand", "Mindestbestand"]])
 
 

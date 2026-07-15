@@ -61,3 +61,13 @@ class TestErstelleProdukt:
         })
         assert "Fehler" in result
         assert "nicht gefunden" in result
+
+    def test_leerer_name(self):
+        """Ein Produkt benötigt einen sichtbaren Namen."""
+        result = erstelle_produkt.invoke({
+            "name": "   ",
+            "mindestbestand": 10,
+            "preis_pro_einheit": 2.5,
+            "lieferant_id": 1,
+        })
+        assert "Produktname darf nicht leer sein" in result

@@ -44,17 +44,18 @@ def _loesche_und_wechsle(thread_id_zu_loeschen):
 # ─────────────────────────────────────────
 
 
-def _nav_button(label, key_name):
+def _nav_button(label, key_name, seite=None):
     """Einheitlicher Seitenbutton mit aktivem Zustand."""
-    is_active = st.session_state.seite == label
+    zielseite = seite or label
+    is_active = st.session_state.seite == zielseite
     btn_type = "primary" if is_active else "secondary"
     if st.button(label, key=key_name, width="stretch", type=btn_type):
-        st.session_state.seite = label
+        st.session_state.seite = zielseite
         st.rerun()
 
 
 def _render_session_liste():
-    """Zeigt alle Sessions mit Umbenennen- und Löschen-Menue."""
+    """Zeigt alle Sessions mit Umbenennen- und Löschen-Menü."""
     sessions = lade_alle_sessions()
     if not sessions:
         return
@@ -108,7 +109,7 @@ def render_sidebar():
 
         st.caption("Sitzungen")
         if st.button("Neues Gespräch", key="nav_new_chat", width="stretch", type="primary"):
-            st.session_state.seite = "Chat"
+            st.session_state.seite = "Agent"
             st.session_state._trigger_new_chat = True
             st.rerun()
 
@@ -116,16 +117,16 @@ def render_sidebar():
 
         st.divider()
         st.caption("Arbeitsbereich")
-        _nav_button("Chat", "nav_chat")
+        _nav_button("Agent", "nav_agent")
+        _nav_button("Manuell", "nav_manuell")
         _nav_button("Dashboard", "nav_dashboard")
-        _nav_button("Entnahme", "nav_entnahme")
 
         st.divider()
-        st.caption("Verlauf")
+        st.caption("Vorgänge")
         _nav_button("Bestellhistorie", "nav_bestellhistorie")
 
         st.divider()
-        st.caption("Insights")
+        st.caption("Auswertung")
         _nav_button("Analysen", "nav_analysen")
         _nav_button("Metriken", "nav_metriken")
         _nav_button("Auswertung", "nav_auswertung")

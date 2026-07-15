@@ -75,7 +75,7 @@ def check_engpaesse(limit: int = ENGPASS_DEFAULT_LIMIT) -> str:
             engpaesse = cursor.fetchall()
 
         if not engpaesse:
-            return "Keine Engpässe — alle Bestaende sind ausreichend."
+            return "Keine Engpässe — alle Bestände sind ausreichend."
 
         gesamtkosten = 0
         angezeigt = len(engpaesse)
@@ -89,7 +89,7 @@ def check_engpaesse(limit: int = ENGPASS_DEFAULT_LIMIT) -> str:
                 f"(fehlen: {fehlmenge}) | Kosten: {kosten:.2f} Euro | {p[5]}\n"
             )
 
-        ergebnis += f"\nGeschaetzte Kosten für angezeigte Nachbestellungen: {gesamtkosten:.2f} Euro"
+        ergebnis += f"\nGeschätzte Kosten für angezeigte Nachbestellungen: {gesamtkosten:.2f} Euro"
 
         if limit > 0 and angezeigt < gesamt:
             ergebnis += f"\nHinweis: {gesamt - angezeigt} weitere Engpässe nicht angezeigt. Rufe mit limit=0 für alle auf."

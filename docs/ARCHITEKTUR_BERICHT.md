@@ -35,9 +35,9 @@ Startreihenfolge:
 6. Seitenrouting
 
 Aktuelle Seiten:
-- Chat
+- Agent
+- Manuelle Bearbeitung
 - Dashboard
-- Entnahme
 - Bestellhistorie
 - Analysen
 - Metriken

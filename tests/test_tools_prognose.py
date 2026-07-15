@@ -28,7 +28,7 @@ class TestPrognostiziereBedarf:
         """Es sollte eine empfohlene Bestellmenge und deren Kosten geben."""
         result = prognostiziere_bedarf.invoke({"produkt_id": 1})
         assert "Empfohlene Bestellung" in result
-        assert "Geschaetzte Kosten" in result
+        assert "Geschätzte Kosten" in result
 
     def test_benutzerdefinierter_zeitraum(self):
         """Der Prognosezeitraum sollte anpassbar sein."""

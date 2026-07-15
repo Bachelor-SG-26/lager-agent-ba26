@@ -94,11 +94,11 @@ def prognostiziere_bedarf(produkt_id: int, tage_voraus: int = PROGNOSE_DEFAULT_T
             f"  Bestandssituation:\n"
             f"    Aktueller Bestand:     {produkt[1]} Stück\n"
             f"    Mindestbestand:        {produkt[2]} Stück\n"
-            f"    Geschaetzte Reichweite: {reichweite_tage:.0f} Tage{reichweite_status}\n\n"
+            f"    Geschätzte Reichweite:  {reichweite_tage:.0f} Tage{reichweite_status}\n\n"
             f"  Prognose ({tage_voraus} Tage):\n"
             f"    Erwarteter Verbrauch:  {bedarf_prognosezeitraum:.0f} Stück\n"
             f"    Empfohlene Bestellung: {empfohlene_menge} Stück\n"
-            f"    Geschaetzte Kosten:    {empfohlene_kosten:.2f} Euro"
+            f"    Geschätzte Kosten:     {empfohlene_kosten:.2f} Euro"
         )
 
         if bestell_info[0] > 0:

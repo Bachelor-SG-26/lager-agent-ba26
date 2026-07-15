@@ -15,9 +15,9 @@ Der Agent prüft Bestände, erkennt Engpässe, vergleicht Lieferanten, erstellt 
 - Recovery bei unterbrochenen Agent-Läufen
 
 ### Web-Oberfläche (Streamlit)
-- Chat mit Live-Streaming, Session-Verwaltung und Stop-Button
+- Agent mit Live-Streaming, Session-Verwaltung und Stop-Button
 - Dashboard
-- Entnahme
+- Manuelle Bearbeitung für Lager, Beschaffung, Entnahme, Budget und Stammdaten
 - Bestellhistorie
 - Analysen
 - Metriken
@@ -64,7 +64,7 @@ lager-agent/
       recovery.py
     sidebar.py
     dashboard.py
-    entnahme.py
+    manuell.py
     bestellhistorie.py
     analytics.py
     metriken.py

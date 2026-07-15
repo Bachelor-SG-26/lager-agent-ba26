@@ -35,7 +35,7 @@ from views.dashboard import show_dashboard  # noqa: E402
 from views.bestellhistorie import show_bestellhistorie  # noqa: E402
 from views.analytics import show_analytics  # noqa: E402
 from views.metriken import show_metriken  # noqa: E402
-from views.entnahme import show_entnahme  # noqa: E402
+from views.manuell import show_manuell  # noqa: E402
 from views.auswertung import show_auswertung  # noqa: E402
 from views.sidebar import render_sidebar  # noqa: E402
 from services.session import (  # noqa: E402
@@ -74,7 +74,10 @@ if "agent_arbeitet" not in st.session_state:
     st.session_state.agent_arbeitet = False
 
 if "seite" not in st.session_state:
-    st.session_state.seite = "Chat"
+    st.session_state.seite = "Agent"
+elif st.session_state.seite == "Chat":
+    # Migriert offene Sitzungen von der früheren Navigationsbezeichnung.
+    st.session_state.seite = "Agent"
 
 
 render_sidebar()
@@ -82,18 +85,18 @@ render_sidebar()
 
 seite = st.session_state.seite
 
-if seite == "Chat":
+if seite == "Agent":
     show_chat()
 elif seite == "Dashboard":
     show_dashboard()
+elif seite == "Manuell":
+    show_manuell()
 elif seite == "Bestellhistorie":
     show_bestellhistorie()
 elif seite == "Analysen":
     show_analytics()
 elif seite == "Metriken":
     show_metriken()
-elif seite == "Entnahme":
-    show_entnahme()
 elif seite == "Auswertung":
     show_auswertung()
 elif seite == "Einstellungen":

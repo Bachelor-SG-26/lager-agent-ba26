@@ -13,7 +13,7 @@ graph TB
                 CHAT_STATE["state.py\nSession-State, Logging"]
             end
             DASH["views/dashboard.py\nDashboard"]
-            ENTN["views/entnahme.py\nEntnahme"]
+            MANUELL["views/manuell.py\nManuelle Bearbeitung"]
             HIST["views/bestellhistorie.py\nBestellhistorie"]
             ANAL["views/analytics.py\nAnalysen"]
             METR["views/metriken.py\nMetriken"]
@@ -63,7 +63,7 @@ graph TB
     APP --> CHAT
     CHAT --> CHATPKG
     APP --> DASH
-    APP --> ENTN
+    APP --> MANUELL
     APP --> HIST
     APP --> ANAL
     APP --> METR
@@ -97,7 +97,8 @@ graph TB
     SEED --> DB
 
     DASH --> DB
-    ENTN --> DB
+    MANUELL --> DB
+    MANUELL --> TOOLS
     HIST --> DB
     ANAL --> DB
     METR --> DB
