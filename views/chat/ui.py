@@ -30,6 +30,11 @@ _TOOL_BESCHREIBUNGEN = {
         f"Erstellt Bedarfsprognosen für {len(a.get('produkt_ids', []))} Produkte "
         f"({a.get('tage_voraus', 30)} Tage voraus)"
     ),
+    "check_lieferanten": lambda a: (
+        f"Sucht vorhandene Lieferanten nach '{a.get('suchbegriff', '')}'"
+        if a.get("suchbegriff")
+        else "Ruft die vorhandenen Lieferanten ab"
+    ),
     "vergleiche_lieferanten": lambda a: (
         f"Vergleicht alle Lieferanten für Produkt #{a.get('produkt_id', '?')}"
     ),

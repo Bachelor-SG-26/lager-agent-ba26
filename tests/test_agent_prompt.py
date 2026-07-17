@@ -14,6 +14,7 @@ EXPECTED_TOOL_NAMES = (
     "erfasse_entnahme",
     "prognostiziere_bedarf",
     "prognostiziere_bedarf_batch",
+    "check_lieferanten",
     "vergleiche_lieferanten",
     "vergleiche_lieferanten_batch",
     "erstelle_produkt",
@@ -26,7 +27,7 @@ EXPECTED_TOOL_NAMES = (
 
 def test_tool_registry_is_complete_and_unique():
     """Prüft Anzahl, Reihenfolge und Eindeutigkeit der registrierten Tools."""
-    assert TOOL_COUNT == 16
+    assert TOOL_COUNT == 17
     assert TOOL_NAMES == EXPECTED_TOOL_NAMES
     assert len(set(TOOL_NAMES)) == TOOL_COUNT
 

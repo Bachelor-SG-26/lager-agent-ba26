@@ -18,6 +18,7 @@ else:
     ENV_PATH = Path(__file__).parent.parent / ".env"
 
 MODEL_CACHE_KEY = "_nvidia_model_catalog"
+MODEL_TEST_KEY = "_nvidia_model_test"
 
 
 def _lade_env_werte():
@@ -131,6 +132,8 @@ def show_setup():
         disabled=not bool(nvidia_key),
         width="content",
     )
+    if modelle_neu_laden:
+        st.session_state.pop(MODEL_TEST_KEY, None)
     gespeicherter_key = bool(
         nvidia_key and nvidia_key == werte["NVIDIA_API_KEY"]
     )
@@ -195,11 +198,45 @@ def show_setup():
     ):
         try:
             with st.spinner("Modellverbindung wird geprüft..."):
-                teste_nvidia_modell(nvidia_key, nvidia_model)
+                modelltest = teste_nvidia_modell(
+                    nvidia_key,
+                    nvidia_model,
+                    supports_tools=(
+                        ausgewaehltes_modell.supports_tools
+                        if ausgewaehltes_modell
+                        else None
+                    ),
+                )
         except Exception as error:
+            st.session_state.pop(MODEL_TEST_KEY, None)
             st.error(formatiere_modellfehler(error))
         else:
-            st.success("Das ausgewählte Modell ist erreichbar.")
+            st.session_state[MODEL_TEST_KEY] = {
+                "fingerprint": _modell_fingerprint(nvidia_key),
+                "modell_id": nvidia_model,
+                "ergebnis": modelltest,
+            }
+
+    gespeicherter_modelltest = st.session_state.get(MODEL_TEST_KEY)
+    if (
+        gespeicherter_modelltest
+        and gespeicherter_modelltest["fingerprint"]
+        == _modell_fingerprint(nvidia_key)
+        and gespeicherter_modelltest["modell_id"] == nvidia_model
+    ):
+        modelltest = gespeicherter_modelltest["ergebnis"]
+        testmeldung = (
+            f"{modelltest.bewertung}: {modelltest.dauer_sekunden:.1f} Sekunden. "
+            f"{modelltest.begruendung}"
+        )
+        if modelltest.empfohlen:
+            st.success(testmeldung)
+        else:
+            st.warning(testmeldung)
+        st.caption(
+            "Die Messung ist eine Momentaufnahme der vollständigen Kurzantwort. "
+            "Netzwerk und Auslastung können das Ergebnis verändern."
+        )
 
     st.divider()
     st.subheader("Telegram-Benachrichtigungen (optional)")

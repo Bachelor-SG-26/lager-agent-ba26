@@ -89,14 +89,14 @@ Tabellen:
 - Prompt-Regeln für Batch-Nutzung, Lieferantenvergleich, Budgetprüfung und Format
 - HITL via `interrupt_before=["tools"]`
 
-Tool-Registry: `agent/tools/__init__.py` (16 Tools)
+Tool-Registry: `agent/tools/__init__.py` (17 Tools)
 - Lager: `check_lagerbestand`, `check_engpaesse`
 - Budget: `check_budget`, `erstelle_budget`
 - Bestellung: `erstelle_bestellung`, `erstelle_bestellung_batch`, `check_bestellhistorie`
 - `erstelle_bestellung` und `erstelle_bestellung_batch` können optional eine `lieferant_id` verwenden; ohne Angabe wird der Standardlieferant genutzt.
 - Entnahme: `erfasse_entnahme`
 - Prognose: `prognostiziere_bedarf`, `prognostiziere_bedarf_batch`
-- Lieferanten: `vergleiche_lieferanten`, `vergleiche_lieferanten_batch`, `erstelle_lieferant`
+- Lieferanten: `check_lieferanten`, `vergleiche_lieferanten`, `vergleiche_lieferanten_batch`, `erstelle_lieferant`
 - Produkte/Lieferanten Update: `erstelle_produkt`, `aktualisiere_produkt`, `aktualisiere_lieferant`
 
 ## 6. Chat-Flow (views/chat/ Package)

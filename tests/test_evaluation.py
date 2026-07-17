@@ -16,6 +16,7 @@ from agent.tools.produkte import erstelle_produkt
 from agent.tools.update import aktualisiere_produkt
 from database.database import db_connection
 from services.evaluation import (
+    exportiere_ereignisse_csv,
     exportiere_aufgaben_csv,
     exportiere_teilnehmerbericht_html,
     hole_aktive_aufgabe,
@@ -29,6 +30,7 @@ from services.evaluation import (
     speichere_sus,
     starte_aufgabe,
     starte_aufgabe_neu,
+    wiederhole_aufgabe,
 )
 from services.session import erstelle_session, speichere_nachricht
 import services.evaluation as evaluation_service
@@ -311,6 +313,88 @@ def test_laufende_aufgabe_kann_nach_unterbrechung_neu_gestartet_werden():
         ereignis = cursor.fetchone()
     assert ereignis[0:2] == ("aufgabe_neu_gestartet", "neu_gestartet")
     assert ereignis[2] >= 0
+
+
+def test_beendete_einzelaufgabe_kann_nachvollziehbar_wiederholt_werden():
+    """Nur der neue Versuch zählt, während Ergebnis und Grund des alten erhalten bleiben."""
+    _registriere("P1")
+    durchlauf = hole_aktuellen_durchlauf("P1")
+
+    erstelle_session("alter-wiederholung-thread")
+    speichere_nachricht("alter-wiederholung-thread", "user", "Alter Versuch")
+    t1 = starte_aufgabe(durchlauf["id"], "T1", "alter-wiederholung-thread")
+    assert not schliesse_aufgabe_ab(
+        t1["id"],
+        {"bestand": 0, "mindestbestand": 0, "fehlmenge": 0},
+    )["erfolgreich"]
+    speichere_aufgabenfeedback(t1["id"], 5, "Verbindung war unterbrochen")
+
+    t2 = starte_aufgabe(durchlauf["id"], "T2")
+    assert schliesse_aufgabe_ab(
+        t2["id"],
+        {"empfohlene_bestellmenge": 20},
+    )["erfolgreich"]
+    speichere_aufgabenfeedback(t2["id"], 2, "Unverändert")
+
+    wiederholt = wiederhole_aufgabe(
+        durchlauf["id"],
+        "T1",
+        "Internet- oder Verbindungsproblem",
+        "wiederholung-thread",
+    )
+
+    assert wiederholt["id"] == t1["id"]
+    assert wiederholt["chat_thread_id"] == "wiederholung-thread"
+    with db_connection() as (conn, cursor):
+        cursor.execute(
+            """
+            SELECT aufgabe_code, status, dauer_ms, erfolgreich, schwierigkeit
+            FROM evaluation_aufgaben
+            WHERE durchlauf_id = ? ORDER BY aufgabe_code
+            """,
+            (durchlauf["id"],),
+        )
+        aufgaben = cursor.fetchall()
+        cursor.execute(
+            """
+            SELECT argumente_json FROM evaluation_ereignisse
+            WHERE aufgabe_id = ? AND aktion = 'aufgabe_wiederholt'
+            """,
+            (t1["id"],),
+        )
+        wiederholungsereignis = json.loads(cursor.fetchone()[0])
+        cursor.execute(
+            "SELECT COUNT(*) FROM chat_sessions WHERE thread_id = ?",
+            ("alter-wiederholung-thread",),
+        )
+        alte_sitzungen = cursor.fetchone()[0]
+
+    assert aufgaben[0] == ("T1", "laufend", None, None, None)
+    assert aufgaben[1][0:2] == ("T2", "abgeschlossen")
+    assert aufgaben[1][2] is not None
+    assert aufgaben[1][3:5] == (1, 2)
+    assert alte_sitzungen == 0
+    assert wiederholungsereignis["wiederholungsgrund"] == "Internet- oder Verbindungsproblem"
+    assert wiederholungsereignis["vorheriger_versuch"] == 1
+    assert wiederholungsereignis["neuer_versuch"] == 2
+    assert wiederholungsereignis["vorheriges_ergebnis"]["erfolgreich"] is False
+
+    assert schliesse_aufgabe_ab(
+        t1["id"],
+        {"bestand": 7, "mindestbestand": 25, "fehlmenge": 18},
+    )["erfolgreich"]
+    speichere_aufgabenfeedback(t1["id"], 2, "Wiederholung erfolgreich")
+
+    bericht = exportiere_teilnehmerbericht_html("P1").decode("utf-8")
+    aufgaben_csv = exportiere_aufgaben_csv().decode("utf-8-sig")
+    ereignisse_csv = exportiere_ereignisse_csv().decode("utf-8-sig")
+
+    assert "Versuch 2 (maßgeblich)" in bericht
+    assert "Internet- oder Verbindungsproblem" in bericht
+    assert "Wiederholung erfolgreich" in bericht
+    assert "versuch" in aufgaben_csv.splitlines()[0]
+    assert "versuch" in ereignisse_csv.splitlines()[0]
+    assert "aufgabe_wiederholt" in ereignisse_csv
 
 
 def test_hard_reset_loescht_nur_gewaehlte_evaluation_und_aufgabenchat(

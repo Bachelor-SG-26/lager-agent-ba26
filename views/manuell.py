@@ -148,6 +148,11 @@ def _lieferant_optionen(lieferanten):
     return {f"{lieferant[1]} · ID {lieferant[0]}": lieferant for lieferant in lieferanten}
 
 
+def _pflege_widget_key(objekt, datensatz_id, feld):
+    """Bindet einen Formularwert eindeutig an den aktuell gewählten Datensatz."""
+    return f"manuell_pflege_{objekt}_{datensatz_id}_{feld}"
+
+
 def _ist_fehler(ergebnis):
     """Erkennt fachliche Fehlermeldungen aus den gemeinsamen Tool-Regeln."""
     text = str(ergebnis).strip()
@@ -557,23 +562,32 @@ def _render_produkt_stammdaten(produkte, lieferanten):
         produkt = produkt_map[produkt_label]
 
         with st.form("manuell_produkt_bearbeiten_form"):
-            neuer_name = st.text_input("Produktname", value=produkt[1])
+            neuer_name = st.text_input(
+                "Produktname",
+                value=produkt[1],
+                key=_pflege_widget_key("produkt", produkt[0], "name"),
+            )
             col_bestand, col_min, col_preis = st.columns(3)
             with col_bestand:
-                neuer_bestand = st.number_input("Bestand", min_value=0, value=produkt[2])
+                neuer_bestand = st.number_input(
+                    "Bestand",
+                    min_value=0,
+                    value=produkt[2],
+                    key=_pflege_widget_key("produkt", produkt[0], "bestand"),
+                )
             with col_min:
                 neuer_mindestbestand = st.number_input(
                     "Mindestbestand",
                     min_value=0,
                     value=produkt[3],
-                    key="manuell_update_mindestbestand",
+                    key=_pflege_widget_key("produkt", produkt[0], "mindestbestand"),
                 )
             with col_preis:
                 neuer_preis = st.number_input(
                     "Preis pro Einheit (Euro)",
                     min_value=0.01,
                     value=float(produkt[4]),
-                    key="manuell_update_preis",
+                    key=_pflege_widget_key("produkt", produkt[0], "preis"),
                 )
             submitted = st.form_submit_button(
                 "Änderungen speichern",
@@ -650,15 +664,23 @@ def _render_lieferant_stammdaten(lieferanten):
         lieferant = lieferant_map[lieferant_label]
 
         with st.form("manuell_lieferant_bearbeiten_form"):
-            neuer_name = st.text_input("Lieferantenname", value=lieferant[1])
-            neuer_kontakt = st.text_input("Kontakt", value=lieferant[2] or "")
+            neuer_name = st.text_input(
+                "Lieferantenname",
+                value=lieferant[1],
+                key=_pflege_widget_key("lieferant", lieferant[0], "name"),
+            )
+            neuer_kontakt = st.text_input(
+                "Kontakt",
+                value=lieferant[2] or "",
+                key=_pflege_widget_key("lieferant", lieferant[0], "kontakt"),
+            )
             col_zeit, col_bewertung = st.columns(2)
             with col_zeit:
                 neue_lieferzeit = st.number_input(
                     "Lieferzeit (Tage)",
                     min_value=0,
                     value=lieferant[3],
-                    key="manuell_update_lieferzeit",
+                    key=_pflege_widget_key("lieferant", lieferant[0], "lieferzeit"),
                 )
             with col_bewertung:
                 neue_bewertung = st.number_input(
@@ -667,7 +689,7 @@ def _render_lieferant_stammdaten(lieferanten):
                     max_value=5.0,
                     value=float(lieferant[4]),
                     step=0.1,
-                    key="manuell_update_bewertung",
+                    key=_pflege_widget_key("lieferant", lieferant[0], "bewertung"),
                 )
             submitted = st.form_submit_button(
                 "Änderungen speichern",

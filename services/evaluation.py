@@ -21,6 +21,17 @@ from services.nvidia_models import DEFAULT_NVIDIA_MODEL
 
 TEILNEHMER_CODES = ("P1", "P2", "P3", "P4", "P5")
 AUFGABEN_CODES = ("T1", "T2", "T3", "T4", "T5")
+WIEDERHOLUNGSGRUENDE = (
+    "Internet- oder Verbindungsproblem",
+    "Technischer Fehler der Anwendung",
+    "Versehentliche Fehlbedienung",
+    "Unterbrechung von außen",
+    "Anderer nachvollziehbarer Grund",
+)
+
+_VERSUCHSSTART_AKTIONEN = frozenset(
+    {"aufgabe_gestartet", "aufgabe_neu_gestartet", "aufgabe_wiederholt"}
+)
 
 ALTERSGRUPPEN = ("18–24", "25–34", "35–44", "45–54", "55+")
 BERUFSBEREICHE = (
@@ -345,6 +356,28 @@ def registriere_teilnehmer(teilnehmer_code, einwilligung_bestaetigt, profil):
             )
 
 
+def _loesche_checkpoint_sitzungen(thread_ids):
+    """Entfernt Agentenzustände der angegebenen Aufgabensitzungen."""
+    thread_ids = tuple(dict.fromkeys(thread_id for thread_id in thread_ids if thread_id))
+    if not thread_ids or not os.path.exists(CHECKPOINT_DB):
+        return
+    with closing(sqlite3.connect(CHECKPOINT_DB)) as checkpoint_conn:
+        checkpoint_cursor = checkpoint_conn.cursor()
+        checkpoint_cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        )
+        tabellen = {row[0] for row in checkpoint_cursor.fetchall()}
+        for tabelle in ("writes", "checkpoints"):
+            if tabelle not in tabellen:
+                continue
+            for thread_id in thread_ids:
+                checkpoint_cursor.execute(
+                    f"DELETE FROM {tabelle} WHERE thread_id = ?",
+                    (thread_id,),
+                )
+        checkpoint_conn.commit()
+
+
 def setze_teilnehmer_evaluation_zurueck(teilnehmer_code):
     """Löscht einen Evaluationslauf vollständig und stellt die Fachdaten wieder her."""
     _pruefe_teilnehmer_code(teilnehmer_code)
@@ -398,22 +431,7 @@ def setze_teilnehmer_evaluation_zurueck(teilnehmer_code):
             )
         _setze_fachdaten_zurueck(cursor)
 
-    if thread_ids and os.path.exists(CHECKPOINT_DB):
-        with closing(sqlite3.connect(CHECKPOINT_DB)) as checkpoint_conn:
-            checkpoint_cursor = checkpoint_conn.cursor()
-            checkpoint_cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
-            )
-            tabellen = {row[0] for row in checkpoint_cursor.fetchall()}
-            for tabelle in ("writes", "checkpoints"):
-                if tabelle not in tabellen:
-                    continue
-                for thread_id in thread_ids:
-                    checkpoint_cursor.execute(
-                        f"DELETE FROM {tabelle} WHERE thread_id = ?",
-                        (thread_id,),
-                    )
-            checkpoint_conn.commit()
+    _loesche_checkpoint_sitzungen(thread_ids)
     return {"teilnehmer_code": teilnehmer_code, "chat_sitzungen": len(thread_ids)}
 
 
@@ -807,6 +825,132 @@ def starte_aufgabe_neu(aufgabe_id, chat_thread_id=None):
         )
 
     return hole_aktive_aufgabe(aufgabe_id)
+
+
+def _aktuelle_versuchsnummer(cursor, aufgabe_id):
+    """Ermittelt die laufende Versuchsnummer aus dem unveränderlichen Ereignislog."""
+    platzhalter = ", ".join("?" for _ in _VERSUCHSSTART_AKTIONEN)
+    cursor.execute(
+        f"""
+        SELECT COUNT(*) FROM evaluation_ereignisse
+        WHERE aufgabe_id = ? AND aktion IN ({platzhalter})
+        """,
+        (aufgabe_id, *_VERSUCHSSTART_AKTIONEN),
+    )
+    return max(1, int(cursor.fetchone()[0]))
+
+
+def wiederhole_aufgabe(durchlauf_id, aufgabe_code, grund, chat_thread_id=None):
+    """Startet nur eine beendete Einzelaufgabe erneut und bewahrt den alten Versuch."""
+    if aufgabe_code not in AUFGABEN_CODES:
+        raise ValueError("Unbekannte Evaluationsaufgabe.")
+    grund = str(grund or "").strip()
+    if not grund:
+        raise ValueError("Für die Wiederholung muss ein Grund angegeben werden.")
+
+    neu_gestartet_am = _jetzt()
+    with db_connection(commit=True) as (conn, cursor):
+        durchlauf = _hole_eine(
+            cursor,
+            """
+            SELECT id, teilnehmer_code, modus, szenario
+            FROM evaluation_durchlaeufe WHERE id = ?
+            """,
+            (durchlauf_id,),
+        )
+        if not durchlauf:
+            raise ValueError("Der ausgewählte Durchlauf wurde nicht gefunden.")
+
+        cursor.execute(
+            """
+            SELECT 1
+            FROM evaluation_aufgaben a
+            JOIN evaluation_durchlaeufe d ON d.id = a.durchlauf_id
+            WHERE d.teilnehmer_code = ? AND a.status = 'laufend'
+            """,
+            (durchlauf["teilnehmer_code"],),
+        )
+        if cursor.fetchone():
+            raise ValueError("Vor der Wiederholung muss die laufende Aufgabe beendet werden.")
+
+        aufgabe = _hole_eine(
+            cursor,
+            """
+            SELECT id, status, gestartet_am, abgeschlossen_am, dauer_ms,
+                   antwort_json, erfolgreich, validierung_json,
+                   schwierigkeit, kommentar, chat_thread_id
+            FROM evaluation_aufgaben
+            WHERE durchlauf_id = ? AND aufgabe_code = ?
+            """,
+            (durchlauf_id, aufgabe_code),
+        )
+        if not aufgabe or aufgabe["status"] not in ("abgeschlossen", "abgebrochen"):
+            raise ValueError("Nur eine bereits beendete Aufgabe kann wiederholt werden.")
+
+        vorheriger_versuch = _aktuelle_versuchsnummer(cursor, aufgabe["id"])
+        alter_thread_id = aufgabe["chat_thread_id"]
+        vorheriges_ergebnis = {
+            "versuch": vorheriger_versuch,
+            "status": aufgabe["status"],
+            "gestartet_am": aufgabe["gestartet_am"],
+            "abgeschlossen_am": aufgabe["abgeschlossen_am"],
+            "dauer_ms": aufgabe["dauer_ms"],
+            "erfolgreich": (
+                bool(aufgabe["erfolgreich"])
+                if aufgabe["erfolgreich"] is not None
+                else None
+            ),
+            "antwort": _json_loads(aufgabe["antwort_json"]),
+            "validierung": _json_loads(aufgabe["validierung_json"]),
+            "schwierigkeit": aufgabe["schwierigkeit"],
+            "kommentar": aufgabe["kommentar"],
+        }
+        if alter_thread_id:
+            cursor.execute(
+                "DELETE FROM chat_nachrichten WHERE thread_id = ?",
+                (alter_thread_id,),
+            )
+            cursor.execute(
+                "DELETE FROM chat_sessions WHERE thread_id = ?",
+                (alter_thread_id,),
+            )
+
+        _setze_fachdaten_zurueck(cursor)
+        erwartung = _bereite_aufgabe_vor(cursor, aufgabe_code, durchlauf["szenario"])
+        cursor.execute(
+            """
+            UPDATE evaluation_aufgaben
+            SET status = 'laufend', gestartet_am = ?, abgeschlossen_am = NULL,
+                dauer_ms = NULL, erwartung_json = ?, antwort_json = NULL,
+                erfolgreich = NULL, validierung_json = NULL,
+                schwierigkeit = NULL, kommentar = NULL, chat_thread_id = ?
+            WHERE id = ?
+            """,
+            (
+                neu_gestartet_am,
+                _json_dumps(erwartung),
+                chat_thread_id,
+                aufgabe["id"],
+            ),
+        )
+        _protokolliere_ereignis(
+            cursor,
+            aufgabe["id"],
+            durchlauf["modus"],
+            str(uuid.uuid4()),
+            "aufgabe_wiederholt",
+            {
+                "wiederholungsgrund": grund,
+                "vorheriger_versuch": vorheriger_versuch,
+                "neuer_versuch": vorheriger_versuch + 1,
+                "vorheriges_ergebnis": vorheriges_ergebnis,
+            },
+            "neu_gestartet",
+            None,
+        )
+
+    _loesche_checkpoint_sitzungen((alter_thread_id,))
+    return hole_aktive_aufgabe(aufgabe["id"])
 
 
 def hole_laufende_aufgabe_fuer_teilnehmer(teilnehmer_code):
@@ -1266,6 +1410,15 @@ def exportiere_aufgaben_csv():
                t.lager_erfahrung, t.digitale_kenntnisse, t.ki_erfahrung,
                t.vorherige_kenntnis, d.position, d.modus, d.szenario,
                a.aufgabe_code, a.status, a.gestartet_am, a.abgeschlossen_am,
+               MAX(1, (
+                   SELECT COUNT(*) FROM evaluation_ereignisse start
+                   WHERE start.aufgabe_id = a.id
+                     AND start.aktion IN (
+                         'aufgabe_gestartet',
+                         'aufgabe_neu_gestartet',
+                         'aufgabe_wiederholt'
+                     )
+               )) AS versuch,
                a.dauer_ms, a.erfolgreich, a.antwort_json, a.validierung_json,
                a.schwierigkeit, a.kommentar, d.modell_id, d.sus_score, d.feedback
         FROM evaluation_durchlaeufe d
@@ -1282,6 +1435,16 @@ def exportiere_ereignisse_csv():
     return _csv_aus_abfrage(
         """
         SELECT d.teilnehmer_code, d.modus, d.szenario, a.aufgabe_code,
+               MAX(1, (
+                   SELECT COUNT(*) FROM evaluation_ereignisse start
+                   WHERE start.aufgabe_id = e.aufgabe_id
+                     AND start.id <= e.id
+                     AND start.aktion IN (
+                         'aufgabe_gestartet',
+                         'aufgabe_neu_gestartet',
+                         'aufgabe_wiederholt'
+                     )
+               )) AS versuch,
                e.quelle, e.ereignis_id, e.aktion, e.argumente_json,
                e.status, e.dauer_ms, e.erstellt_am
         FROM evaluation_ereignisse e
@@ -1335,6 +1498,19 @@ _BERICHT_LABELS = {
     "produktdaten": "Tatsächliche Produktdaten",
     "lieferantenzuordnung_vorhanden": "Lieferantenzuordnung vorhanden",
     "protokollierte_aktionen": "Protokollierte fachliche Aktionen",
+    "versuch": "Versuch",
+    "wiederholungsgrund": "Wiederholungsgrund",
+    "vorheriger_versuch": "Vorheriger Versuch",
+    "neuer_versuch": "Neuer Versuch",
+    "vorheriges_ergebnis": "Vorheriges Ergebnis",
+    "gestartet_am": "Gestartet am",
+    "abgeschlossen_am": "Abgeschlossen am",
+    "dauer_ms": "Dauer in Millisekunden",
+    "erfolgreich": "Fachlich erfüllt",
+    "antwort": "Erfasste Ausführung",
+    "validierung": "Prüfergebnis",
+    "schwierigkeit": "Schwierigkeit",
+    "kommentar": "Rückmeldung",
     "aktion": "Aktion",
     "status": "Status",
     "argumente": "Argumente",
@@ -1365,6 +1541,19 @@ def _bericht_wert(wert):
     if wert is None or wert == "":
         return "<span class='muted'>–</span>"
     return escape(str(wert))
+
+
+def _markiere_ereignisversuche(ereignisse):
+    """Ordnet jedes Ereignis dem zugehörigen Aufgabenversuch zu."""
+    versuch = 0
+    markiert = []
+    for ereignis in ereignisse:
+        if ereignis["aktion"] in _VERSUCHSSTART_AKTIONEN:
+            versuch += 1
+        eintrag = dict(ereignis)
+        eintrag["versuch"] = max(1, versuch)
+        markiert.append(eintrag)
+    return markiert
 
 
 def _hole_teilnehmerbericht_daten(teilnehmer_code):
@@ -1477,22 +1666,34 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
             else "Offen"
         )
         status_css = "ok" if aufgabe["erfolgreich"] == 1 else "nicht-ok"
+        task_events = _markiere_ereignisversuche(
+            [
+                ereignis
+                for ereignis in ereignisse
+                if ereignis["aufgabe_id"] == aufgabe["id"]
+            ]
+        )
+        aktueller_versuch = max(
+            (ereignis["versuch"] for ereignis in task_events),
+            default=1,
+        )
         aufgaben_zeilen.append(
             "<tr>"
             f"<td>{escape(aufgabe['aufgabe_code'])}</td>"
             f"<td>{escape(titel)}</td>"
             f"<td>{escape(aufgabe['modus'])}</td>"
             f"<td>{escape(aufgabe['szenario'])}</td>"
+            f"<td>{aktueller_versuch}</td>"
             f"<td>{dauer}</td>"
             f"<td><span class='{status_css}'>{bewertung}</span></td>"
             f"<td>{_bericht_wert(aufgabe['schwierigkeit'])}</td>"
             "</tr>"
         )
 
-        task_events = [
+        aktuelle_ereignisse = [
             ereignis
-            for ereignis in ereignisse
-            if ereignis["aufgabe_id"] == aufgabe["id"]
+            for ereignis in task_events
+            if ereignis["versuch"] == aktueller_versuch
         ]
         erfasste_ausfuehrung = aufgabe["antwort"]
         if not erfasste_ausfuehrung:
@@ -1502,11 +1703,12 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
                     "status": ereignis["status"],
                     "argumente": ereignis["argumente"],
                 }
-                for ereignis in task_events
+                for ereignis in aktuelle_ereignisse
                 if ereignis["aktion"]
                 not in {
                     "aufgabe_gestartet",
                     "aufgabe_neu_gestartet",
+                    "aufgabe_wiederholt",
                     "aufgabe_abgeschlossen",
                     "aufgabe_abgebrochen",
                 }
@@ -1518,6 +1720,7 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
         for ereignis in task_events:
             ereignis_zeilen.append(
                 "<tr>"
+                f"<td>{ereignis['versuch']}</td>"
                 f"<td>{escape(ereignis['erstellt_am'])}</td>"
                 f"<td>{escape(ereignis['aktion'])}</td>"
                 f"<td>{escape(ereignis['status'])}</td>"
@@ -1529,7 +1732,7 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
         detail_abschnitte.append(
             f"""
             <section class="task-detail">
-              <h3>{escape(aufgabe['aufgabe_code'])} · {escape(titel)}</h3>
+              <h3>{escape(aufgabe['aufgabe_code'])} · {escape(titel)} · Versuch {aktueller_versuch} (maßgeblich)</h3>
               <p>{escape(info['anweisung'].replace('**', ''))}</p>
               <div class="detail-grid">
                 <div><h4>Vorausgesetzter Zustand</h4>{_bericht_wert(aufgabe['erwartung'])}</div>
@@ -1538,7 +1741,7 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
                 <div><h4>Rückmeldung</h4><p>Schwierigkeit: {_bericht_wert(aufgabe['schwierigkeit'])}</p><p>{_bericht_wert(aufgabe['kommentar'])}</p></div>
               </div>
               <h4>Ereignisprotokoll</h4>
-              <table><thead><tr><th>Zeitpunkt</th><th>Aktion</th><th>Status</th><th>Dauer ms</th><th>Argumente</th></tr></thead>
+              <table><thead><tr><th>Versuch</th><th>Zeitpunkt</th><th>Aktion</th><th>Status</th><th>Dauer ms</th><th>Argumente</th></tr></thead>
               <tbody>{''.join(ereignis_zeilen)}</tbody></table>
             </section>
             """
@@ -1580,13 +1783,13 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
     <div class="metric"><span>Fachlich erfüllt</span><strong>{erfolgreich}/{beendet}</strong></div>
     <div class="metric"><span>Bevorzugter Modus</span><strong>{_bericht_wert(teilnehmer['bevorzugter_modus'])}</strong></div>
   </div>
-  <p class="note">Die fachliche Bewertung basiert bei T1 und T2 auf den eingegebenen Ergebnissen. Bei T3 bis T5 wird der tatsächlich erzeugte Datenbankzustand geprüft. Neustarts und alle Agenten- beziehungsweise manuellen Aktionen bleiben im Ereignisprotokoll erhalten.</p>
+  <p class="note">Die fachliche Bewertung basiert bei T1 und T2 auf den eingegebenen Ergebnissen. Bei T3 bis T5 wird der tatsächlich erzeugte Datenbankzustand geprüft. Bei Wiederholungen ist ausschließlich der neueste Versuch für Dauer, Ergebnis und Rückmeldung maßgeblich; frühere Versuche und der Wiederholungsgrund bleiben im Ereignisprotokoll erhalten.</p>
   <h2>Teilnehmerprofil</h2>
   {_bericht_wert(profil)}
   <h2>Durchläufe</h2>
   <table><thead><tr><th>Nr.</th><th>Modus</th><th>Szenario</th><th>Status</th><th>Modell</th><th>SUS</th><th>Feedback</th></tr></thead><tbody>{''.join(durchlauf_zeilen)}</tbody></table>
   <h2>Aufgabenübersicht</h2>
-  <table><thead><tr><th>Code</th><th>Aufgabe</th><th>Modus</th><th>Szenario</th><th>Dauer</th><th>Ergebnis</th><th>Schwierigkeit</th></tr></thead><tbody>{''.join(aufgaben_zeilen)}</tbody></table>
+  <table><thead><tr><th>Code</th><th>Aufgabe</th><th>Modus</th><th>Szenario</th><th>Versuch</th><th>Dauer</th><th>Ergebnis</th><th>Schwierigkeit</th></tr></thead><tbody>{''.join(aufgaben_zeilen)}</tbody></table>
   <h2>Aufgabendetails</h2>
   {''.join(detail_abschnitte)}
   <h2>Abschluss</h2>

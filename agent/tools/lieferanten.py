@@ -78,6 +78,57 @@ def _formatiere_vergleich(produkt_name, lieferanten):
 
 
 @tool
+def check_lieferanten(suchbegriff: str = "", limit: int = 20) -> str:
+    """Listet vorhandene Lieferanten mit ID auf und filtert optional nach Namen.
+
+    Args:
+        suchbegriff: Optionaler vollständiger oder teilweiser Lieferantenname
+        limit: Maximale Anzahl Ergebnisse, 0 liefert alle Treffer
+    """
+    if limit < 0:
+        return "Fehler: Limit darf nicht negativ sein."
+
+    try:
+        with db_connection() as (conn, cursor):
+            parameter = []
+            where = ""
+            if suchbegriff.strip():
+                where = "WHERE name LIKE ? COLLATE NOCASE"
+                parameter.append(f"%{suchbegriff.strip()}%")
+
+            limit_sql = ""
+            if limit > 0:
+                limit_sql = "LIMIT ?"
+                parameter.append(limit)
+
+            cursor.execute(
+                f"""
+                SELECT id, name, kontakt, lieferzeit_tage, bewertung
+                FROM lieferanten
+                {where}
+                ORDER BY name
+                {limit_sql}
+                """,
+                parameter,
+            )
+            lieferanten = cursor.fetchall()
+
+        if not lieferanten:
+            return f"Keine Lieferanten für '{suchbegriff.strip()}' gefunden."
+
+        zeilen = [f"Vorhandene Lieferanten ({len(lieferanten)} Treffer):"]
+        for lieferant_id, name, kontakt, lieferzeit, bewertung in lieferanten:
+            zeilen.append(
+                f"  [{lieferant_id}] {name} | Kontakt: {kontakt} | "
+                f"Lieferzeit: {lieferzeit} Tage | Bewertung: {bewertung:.1f}/5.0"
+            )
+        return "\n".join(zeilen)
+    except Exception as e:
+        logger.error("Fehler bei Lieferantensuche (%s): %s", suchbegriff, e)
+        return f"Fehler beim Abrufen der Lieferanten: {e}"
+
+
+@tool
 def vergleiche_lieferanten(produkt_id: int) -> str:
     """Vergleicht alle verfügbaren Lieferanten für ein Produkt nach Preis, Lieferzeit und Bewertung.
 

@@ -6,6 +6,7 @@ from views.manuell import (
     _lade_budgets,
     _lade_lieferanten_fuer_produkt,
     _lade_produkte,
+    _pflege_widget_key,
     _produkte_dataframe,
 )
 
@@ -68,3 +69,13 @@ def test_tool_ergebnisse_werden_richtig_eingeordnet():
     assert _ist_fehler("Nicht genug Bestand. Verfügbar: 2 Stück.") is True
     assert _ist_fehler("Keine Änderungen angegeben.") is True
     assert _ist_fehler("Bestellung erfolgreich angelegt.") is False
+
+
+def test_pflegefelder_sind_an_den_gewaehlten_datensatz_gebunden():
+    """Werte eines Produkts dürfen beim Auswahlwechsel nicht übernommen werden."""
+    assert _pflege_widget_key("produkt", 1, "preis") != _pflege_widget_key(
+        "produkt", 2, "preis"
+    )
+    assert _pflege_widget_key("produkt", 1, "preis").startswith(
+        "manuell_pflege_produkt_1_"
+    )

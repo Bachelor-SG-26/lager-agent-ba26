@@ -12,6 +12,7 @@ from services.evaluation import (
     LAGER_ERFAHRUNGEN,
     SUS_AUSSAGEN,
     TEILNEHMER_CODES,
+    WIEDERHOLUNGSGRUENDE,
     brich_aufgabe_ab,
     exportiere_aufgaben_csv,
     exportiere_ereignisse_csv,
@@ -37,6 +38,7 @@ from services.evaluation import (
     setze_teilnehmer_evaluation_zurueck,
     teilnehmer_existiert,
     teilnehmerprofil_vollstaendig,
+    wiederhole_aufgabe,
 )
 from services.session import erstelle_session, lade_nachrichten
 from views.chat.state import reset_state
@@ -44,7 +46,7 @@ from views.chat.state import reset_state
 
 QUERY_TASK_KEY = "evaluation_task"
 QUERY_PARTICIPANT_KEY = "evaluation_participant"
-STUDIENLEITUNG_EMAIL = "Sefa_guer@hotmail.com"
+STUDIENLEITUNG_EMAIL = "sefa.guer@iu-study.org"
 
 
 def _query_wert(name):
@@ -306,6 +308,37 @@ def _starte_aktive_aufgabe_neu(aufgabe):
         _aktiviere_agentensitzung(neu, erzwingen=True)
     _setze_aktiven_kontext(neu)
     st.session_state.pop("_evaluation_resume_notice", None)
+    st.session_state.seite = neu["modus"]
+    st.session_state._letzte_seite = neu["modus"]
+    st.rerun()
+
+
+def _bereinige_wiederholungszustand(aufgabe_id):
+    """Entfernt alte Formularwerte, damit der neue Versuch unabhängig beginnt."""
+    praefixe = (
+        f"evaluation_antwort_{aufgabe_id}_",
+        "manuell_pflege_",
+    )
+    for schluessel in list(st.session_state):
+        if str(schluessel).startswith(praefixe):
+            st.session_state.pop(schluessel, None)
+    st.session_state.pop("manuell_produkt_bearbeiten", None)
+
+
+def _starte_einzelwiederholung(durchlauf, aufgabe_code, grund):
+    """Startet den ausgewählten Versuch mit frischen Daten und eigener Sitzung."""
+    thread_id = str(uuid.uuid4()) if durchlauf["modus"] == "Agent" else None
+    neu = wiederhole_aufgabe(
+        durchlauf["id"],
+        aufgabe_code,
+        grund,
+        thread_id,
+    )
+    _bereinige_wiederholungszustand(neu["id"])
+    if thread_id:
+        erstelle_session(thread_id)
+        _aktiviere_agentensitzung(neu, erzwingen=True)
+    _setze_aktiven_kontext(neu)
     st.session_state.seite = neu["modus"]
     st.session_state._letzte_seite = neu["modus"]
     st.rerun()
@@ -579,6 +612,104 @@ def _render_abschluss(teilnehmer_code):
         st.rerun()
 
 
+def _render_einzelwiederholung(teilnehmer_code, durchlaeufe):
+    """Bietet eine nachvollziehbare Wiederholung genau einer beendeten Aufgabe an."""
+    wiederholbare_durchlaeufe = []
+    for durchlauf in durchlaeufe:
+        status = hole_aufgabenstatus(durchlauf["id"])
+        codes = tuple(
+            code
+            for code in AUFGABEN_CODES
+            if code in status
+            and status[code]["status"] in ("abgeschlossen", "abgebrochen")
+        )
+        if codes:
+            wiederholbare_durchlaeufe.append((durchlauf, status, codes))
+
+    if not wiederholbare_durchlaeufe:
+        return
+
+    with st.expander(
+        "Einzelne Aufgabe wiederholen",
+        icon=":material/replay:",
+    ):
+        st.caption(
+            "Nur der ausgewählte Versuch wird neu gemessen. Alle anderen Aufgaben "
+            "bleiben unverändert; der vorherige Versuch und der Grund bleiben im Bericht erhalten."
+        )
+        modus_optionen = tuple(
+            eintrag[0]["modus"] for eintrag in wiederholbare_durchlaeufe
+        )
+        modus = st.selectbox(
+            "Bedienmodus",
+            modus_optionen,
+            key=f"evaluation_wiederholung_modus_{teilnehmer_code}",
+        )
+        durchlauf, status, codes = next(
+            eintrag
+            for eintrag in wiederholbare_durchlaeufe
+            if eintrag[0]["modus"] == modus
+        )
+        aufgabe_code = st.selectbox(
+            "Aufgabe",
+            codes,
+            format_func=lambda code: f"{code} · {hole_aufgabeninfo(code, durchlauf['szenario'])['titel']}",
+            key=f"evaluation_wiederholung_aufgabe_{teilnehmer_code}_{durchlauf['id']}",
+        )
+        bisher = status[aufgabe_code]
+        ergebnis = (
+            "erfüllt"
+            if bisher["erfolgreich"] == 1
+            else "nicht erfüllt"
+            if bisher["erfolgreich"] == 0
+            else bisher["status"]
+        )
+        dauer = (
+            f"{bisher['dauer_ms'] / 1000:.1f} Sekunden"
+            if bisher["dauer_ms"] is not None
+            else "nicht verfügbar"
+        )
+        st.info(
+            f"Bisheriges Ergebnis: {ergebnis} · Bearbeitungszeit: {dauer}"
+        )
+
+        grundauswahl = st.selectbox(
+            "Grund für die Wiederholung",
+            WIEDERHOLUNGSGRUENDE,
+            index=None,
+            placeholder="Bitte auswählen",
+            key=f"evaluation_wiederholung_grund_{teilnehmer_code}",
+        )
+        grund = grundauswahl or ""
+        if grundauswahl == "Anderer nachvollziehbarer Grund":
+            grund = st.text_input(
+                "Kurze Begründung",
+                key=f"evaluation_wiederholung_freitext_{teilnehmer_code}",
+            ).strip()
+        bestaetigt = st.checkbox(
+            f"Nur {modus} · {aufgabe_code} neu starten",
+            key=(
+                f"evaluation_wiederholung_bestaetigt_{teilnehmer_code}_"
+                f"{durchlauf['id']}_{aufgabe_code}"
+            ),
+        )
+        if st.button(
+            "Ausgewählte Aufgabe wiederholen",
+            type="primary",
+            icon=":material/replay:",
+            disabled=not grund or not bestaetigt,
+            width="stretch",
+            key=(
+                f"evaluation_wiederholung_start_{teilnehmer_code}_"
+                f"{durchlauf['id']}_{aufgabe_code}"
+            ),
+        ):
+            try:
+                _starte_einzelwiederholung(durchlauf, aufgabe_code, grund)
+            except ValueError as exc:
+                st.error(str(exc))
+
+
 def _render_durchlauf(teilnehmer_code, durchlauf):
     """Zeigt Fortschritt, Aufgabenreiter und den kontrollierten Startknopf."""
     status = hole_aufgabenstatus(durchlauf["id"])
@@ -677,6 +808,7 @@ def show_evaluation():
         return
 
     durchlaeufe = hole_durchlaeufe(teilnehmer_code)
+    _render_einzelwiederholung(teilnehmer_code, durchlaeufe)
     aktueller_durchlauf = hole_aktuellen_durchlauf(teilnehmer_code)
     if not aktueller_durchlauf:
         _render_abschluss(teilnehmer_code)

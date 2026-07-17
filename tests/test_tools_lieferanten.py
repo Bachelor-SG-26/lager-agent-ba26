@@ -1,11 +1,42 @@
 """Tests für Lieferanten-Tools: Vergleich und Erstellung."""
 import pytest
 from agent.tools.lieferanten import (
+    check_lieferanten,
     vergleiche_lieferanten,
     vergleiche_lieferanten_batch,
     erstelle_lieferant,
 )
 from config import BATCH_DEFAULT_MAX_POSITIONEN
+
+
+class TestCheckLieferanten:
+    """Tests für die Suche in vorhandenen Lieferanten."""
+
+    def test_findet_lieferant_nach_namen_mit_id(self):
+        """Die Suche liefert für Misumi die benötigte Datenbank-ID."""
+        result = check_lieferanten.invoke({"suchbegriff": "Misumi"})
+
+        assert "Misumi" in result
+        assert "[" in result
+        assert "1 Treffer" in result
+
+    def test_teilname_findet_passende_lieferanten(self):
+        """Auch ein Teil des Namens kann für die Suche verwendet werden."""
+        result = check_lieferanten.invoke({"suchbegriff": "RS"})
+
+        assert "RS Components" in result
+
+    def test_unbekannter_name_liefert_leeres_ergebnis(self):
+        """Eine erfolglose Suche wird verständlich gemeldet."""
+        result = check_lieferanten.invoke({"suchbegriff": "Nicht vorhanden"})
+
+        assert "Keine Lieferanten" in result
+
+    def test_negatives_limit_wird_abgelehnt(self):
+        """Negative Ergebnislimits sind ungültig."""
+        result = check_lieferanten.invoke({"limit": -1})
+
+        assert "Fehler" in result
 
 
 class TestVergleicheLieferanten:

@@ -8,6 +8,7 @@ from agent.tools.budget import check_budget, erstelle_budget
 from agent.tools.entnahme import erfasse_entnahme
 from agent.tools.prognose import prognostiziere_bedarf, prognostiziere_bedarf_batch
 from agent.tools.lieferanten import (
+    check_lieferanten,
     vergleiche_lieferanten,
     vergleiche_lieferanten_batch,
     erstelle_lieferant,
@@ -25,6 +26,7 @@ ALL_TOOLS = [
     erfasse_entnahme,
     prognostiziere_bedarf,
     prognostiziere_bedarf_batch,
+    check_lieferanten,
     vergleiche_lieferanten,
     vergleiche_lieferanten_batch,
     erstelle_produkt,
