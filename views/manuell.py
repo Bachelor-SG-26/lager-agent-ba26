@@ -1,6 +1,7 @@
 """Manuelle Arbeitsoberfläche für Lager- und Beschaffungsvorgänge."""
 
 from datetime import datetime
+from time import perf_counter
 
 import pandas as pd
 import streamlit as st
@@ -16,6 +17,7 @@ from agent.tools.produkte import erstelle_produkt
 from agent.tools.prognose import prognostiziere_bedarf
 from agent.tools.update import aktualisiere_lieferant, aktualisiere_produkt
 from database.database import db_connection
+from services.evaluation import protokolliere_ereignis
 
 
 BEREICHE = ("Lager", "Beschaffung", "Entnahme", "Budget", "Stammdaten")
@@ -163,10 +165,39 @@ def _zeige_ergebnis(ergebnis):
         st.success(ergebnis)
 
 
+def _rufe_tool_auf(tool, argumente):
+    """Führt ein Tool aus und protokolliert es bei einer aktiven Evaluation."""
+    gestartet = perf_counter()
+    try:
+        ergebnis = tool.invoke(argumente)
+    except Exception as exc:
+        dauer_ms = int((perf_counter() - gestartet) * 1000)
+        protokolliere_ereignis(
+            st.session_state.get("_evaluation_task_id"),
+            "Manuell",
+            tool.name,
+            argumente,
+            "technischer_fehler",
+            dauer_ms,
+        )
+        raise exc
+
+    dauer_ms = int((perf_counter() - gestartet) * 1000)
+    protokolliere_ereignis(
+        st.session_state.get("_evaluation_task_id"),
+        "Manuell",
+        tool.name,
+        argumente,
+        "fachlich_fehlerhaft" if _ist_fehler(ergebnis) else "ausgeführt",
+        dauer_ms,
+    )
+    return ergebnis
+
+
 def _fuehre_aktion_aus(tool, argumente):
     """Führt eine manuelle Aktion über dieselbe Fachlogik wie der Agent aus."""
     try:
-        ergebnis = tool.invoke(argumente)
+        ergebnis = _rufe_tool_auf(tool, argumente)
     except Exception as exc:
         st.error(f"Aktion fehlgeschlagen: {exc}")
         return
@@ -266,8 +297,15 @@ def _render_lager(produkte):
 
     if submitted:
         produkt = optionen[auswahl]
-        ergebnis = prognostiziere_bedarf.invoke({"produkt_id": produkt[0], "tage_voraus": int(tage)})
-        _zeige_ergebnis(ergebnis)
+        try:
+            ergebnis = _rufe_tool_auf(
+                prognostiziere_bedarf,
+                {"produkt_id": produkt[0], "tage_voraus": int(tage)},
+            )
+        except Exception as exc:
+            st.error(f"Prognose fehlgeschlagen: {exc}")
+        else:
+            _zeige_ergebnis(ergebnis)
 
 
 # ─────────────────────────────────────────

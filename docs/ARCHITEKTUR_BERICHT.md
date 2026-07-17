@@ -37,12 +37,26 @@ Startreihenfolge:
 Aktuelle Seiten:
 - Agent
 - Manuelle Bearbeitung
+- Evaluation
 - Dashboard
 - Bestellhistorie
 - Analysen
 - Metriken
 - Auswertung
 - Einstellungen
+
+Die Evaluationsseite führt anonymisierte Teilnehmer nach einem verpflichtenden
+Kontextfragebogen durch zwei gegenbalancierte Durchläufe. Aufgabenbezogene
+Lagerdaten werden kontrolliert vorbereitet und nach Abschluss zurückgesetzt.
+Teilnehmer-, Aufgaben- und Ereignisdaten bleiben in separaten Evaluationstabellen
+erhalten. Laufende Aufgaben werden über Teilnehmer- und Aufgabenparameter nach
+einem Browser-Reload wiederhergestellt. Der Teilnehmer kann die Aufgabe fortsetzen
+oder mit neuem Timer, neuen Fachdaten und bei Agenten-Aufgaben mit einer leeren
+Chatsitzung wiederholen. Ein bestätigungspflichtiger Hard-Reset löscht ausschließlich
+den gewählten Teilnehmerlauf einschließlich Aufgaben-Chats und stellt die Fachdaten
+wieder her. Nach dem vollständigen Abschluss steht ein formatierter HTML-Bericht
+mit Teilnehmerprofil, Zeiten, tatsächlichen Ausführungen, Kriterien, Ergebnissen
+und Feedback zum Download bereit.
 
 ## 4. Datenbank und Persistenz
 

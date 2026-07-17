@@ -50,6 +50,9 @@ def _reload_bei_seitenwechsel():
     Guard: Nur reloaden wenn vorher eine andere Seite aktiv war. Nach dem Reload
     ist session_state leer — die Bedingung kann nicht nochmal ausloesen.
     """
+    if st.session_state.get("_evaluation_task_id"):
+        return
+
     letzte = st.session_state.get("_letzte_seite")
     if letzte is not None and letzte != "Agent":
         st.session_state._letzte_seite = "Agent"

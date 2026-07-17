@@ -18,6 +18,7 @@ Der Agent prüft Bestände, erkennt Engpässe, vergleicht Lieferanten, erstellt 
 - Agent mit Live-Streaming, Session-Verwaltung und Stop-Button
 - Dashboard
 - Manuelle Bearbeitung für Lager, Beschaffung, Entnahme, Budget und Stammdaten
+- Geführte Evaluation mit anonymem Teilnehmerprofil, T1–T5, Reload-Wiederaufnahme, automatischer Prüfung, Hard-Reset und Abschlussbericht
 - Bestellhistorie
 - Analysen
 - Metriken
@@ -55,6 +56,7 @@ lager-agent/
     logger.py
     session.py
     telegram.py
+    evaluation.py
   views/
     chat/
       __init__.py
@@ -65,6 +67,7 @@ lager-agent/
     sidebar.py
     dashboard.py
     manuell.py
+    evaluation.py
     bestellhistorie.py
     analytics.py
     metriken.py

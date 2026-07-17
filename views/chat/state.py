@@ -7,6 +7,7 @@ from langchain_core.messages import ToolMessage
 
 from database.database import db_connection
 from services import agent_bridge
+from services.evaluation import protokolliere_ereignis
 from services.session import speichere_nachricht
 from services.logger import get_logger
 
@@ -55,6 +56,8 @@ def stop_requested():
 def log_tool_calls(tool_calls, status, duration_ms_by_call_id=None):
     """Schreibt Tool-Call-Ereignisse mit eindeutiger Aufruf-ID in agent_log."""
     duration_ms_by_call_id = duration_ms_by_call_id or {}
+    evaluation_task_id = st.session_state.get("_evaluation_task_id")
+    evaluation_events = []
     try:
         datum = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with db_connection(commit=True) as (conn, cursor):
@@ -70,8 +73,26 @@ def log_tool_calls(tool_calls, status, duration_ms_by_call_id=None):
                     """,
                     (tool_call_id, tc["name"], args_str, status, datum, duration_ms),
                 )
+                evaluation_events.append(
+                    (tool_call_id, tc["name"], tc.get("args") or {}, duration_ms)
+                )
     except Exception as e:
         logger.error("Fehler beim Loggen der Tool-Calls: %s", e)
+        return
+
+    for tool_call_id, tool_name, argumente, duration_ms in evaluation_events:
+        try:
+            protokolliere_ereignis(
+                evaluation_task_id,
+                "Agent",
+                tool_name,
+                argumente,
+                status,
+                duration_ms,
+                tool_call_id,
+            )
+        except Exception as e:
+            logger.error("Fehler beim Evaluations-Logging: %s", e)
 
 
 def status_aus_tool_result(content):

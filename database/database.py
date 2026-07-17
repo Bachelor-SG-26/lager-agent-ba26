@@ -54,6 +54,7 @@ def init_db():
 
     create_tables(cursor)
     _migrate_agent_log(cursor)
+    _migrate_evaluation_teilnehmende(cursor)
     conn.commit()
 
     seed_data(cursor)
@@ -75,6 +76,30 @@ def _migrate_agent_log(cursor):
             continue
         cursor.execute(f"ALTER TABLE agent_log ADD COLUMN {column} {column_type}")
         logger.info("Schema-Migration: agent_log.%s hinzugefügt", column)
+
+
+def _migrate_evaluation_teilnehmende(cursor):
+    """Ergänzt Profildaten, ohne bereits erhobene Evaluationen zu verwerfen."""
+    cursor.execute("PRAGMA table_info(evaluation_teilnehmende)")
+    columns = {row[1] for row in cursor.fetchall()}
+    migrations = {
+        "altersgruppe": "TEXT",
+        "berufsbereich": "TEXT",
+        "lager_erfahrung": "TEXT",
+        "digitale_kenntnisse": "INTEGER",
+        "ki_erfahrung": "TEXT",
+        "vorherige_kenntnis": "INTEGER",
+    }
+    for column, column_type in migrations.items():
+        if column in columns:
+            continue
+        cursor.execute(
+            f"ALTER TABLE evaluation_teilnehmende ADD COLUMN {column} {column_type}"
+        )
+        logger.info(
+            "Schema-Migration: evaluation_teilnehmende.%s hinzugefügt",
+            column,
+        )
 
 
 if __name__ == "__main__":

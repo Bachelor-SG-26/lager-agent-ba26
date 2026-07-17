@@ -50,6 +50,13 @@ def _nav_button(label, key_name, seite=None):
     is_active = st.session_state.seite == zielseite
     btn_type = "primary" if is_active else "secondary"
     if st.button(label, key=key_name, width="stretch", type=btn_type):
+        if zielseite != "Evaluation" and not st.session_state.get(
+            "_evaluation_task_id"
+        ):
+            st.session_state.pop("_evaluation_teilnehmer", None)
+            for parameter in ("evaluation_participant", "evaluation_task"):
+                if parameter in st.query_params:
+                    del st.query_params[parameter]
         st.session_state.seite = zielseite
         st.rerun()
 
@@ -107,18 +114,33 @@ def render_sidebar():
         st.markdown("<div class='sidebar-sub'>Lagerautomation & Agent</div>", unsafe_allow_html=True)
         st.divider()
 
+        evaluation_aktiv = bool(st.session_state.get("_evaluation_task_id"))
         st.caption("Sitzungen")
-        if st.button("Neues Gespräch", key="nav_new_chat", width="stretch", type="primary"):
+        if st.button(
+            "Neues Gespräch",
+            key="nav_new_chat",
+            width="stretch",
+            type="primary",
+            disabled=evaluation_aktiv,
+        ):
+            st.session_state.pop("_evaluation_teilnehmer", None)
+            for parameter in ("evaluation_participant", "evaluation_task"):
+                if parameter in st.query_params:
+                    del st.query_params[parameter]
             st.session_state.seite = "Agent"
             st.session_state._trigger_new_chat = True
             st.rerun()
 
-        _render_session_liste()
+        if evaluation_aktiv:
+            st.caption("Während einer Evaluationsaufgabe ist die Sitzung fest zugeordnet.")
+        else:
+            _render_session_liste()
 
         st.divider()
         st.caption("Arbeitsbereich")
         _nav_button("Agent", "nav_agent")
         _nav_button("Manuell", "nav_manuell")
+        _nav_button("Evaluation", "nav_evaluation")
         _nav_button("Dashboard", "nav_dashboard")
 
         st.divider()

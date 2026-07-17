@@ -14,6 +14,7 @@ graph TB
             end
             DASH["views/dashboard.py\nDashboard"]
             MANUELL["views/manuell.py\nManuelle Bearbeitung"]
+            EVAL["views/evaluation.py\nEvaluation, Profil, Bericht"]
             HIST["views/bestellhistorie.py\nBestellhistorie"]
             ANAL["views/analytics.py\nAnalysen"]
             METR["views/metriken.py\nMetriken"]
@@ -39,12 +40,13 @@ graph TB
             TELE["services/telegram.py"]
             LOGG["services/logger.py"]
             BRIDGE["services/agent_bridge.py"]
+            EVAL_SERVICE["services/evaluation.py"]
             CONF["config.py"]
         end
 
         subgraph DATA["SQLite"]
             DB["database/database.py"]
-            MOD["database/models.py\nSchema + duration_ms"]
+            MOD["database/models.py\nSchema + Evaluation"]
             SEED["database/seed.py"]
             LAGER_DB[("lager.db")]
             CHECK_DB[("checkpoints.db")]
@@ -64,6 +66,7 @@ graph TB
     CHAT --> CHATPKG
     APP --> DASH
     APP --> MANUELL
+    APP --> EVAL
     APP --> HIST
     APP --> ANAL
     APP --> METR
@@ -99,6 +102,9 @@ graph TB
     DASH --> DB
     MANUELL --> DB
     MANUELL --> TOOLS
+    EVAL --> EVAL_SERVICE
+    EVAL_SERVICE --> DB
+    EVAL_SERVICE --> TOOLS
     HIST --> DB
     ANAL --> DB
     METR --> DB

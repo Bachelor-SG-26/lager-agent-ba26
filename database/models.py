@@ -104,3 +104,75 @@ def create_tables(cursor):
             FOREIGN KEY (thread_id) REFERENCES chat_sessions(thread_id)
         )
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS evaluation_teilnehmende (
+            teilnehmer_code TEXT PRIMARY KEY,
+            einwilligung_am TEXT NOT NULL,
+            altersgruppe TEXT,
+            berufsbereich TEXT,
+            lager_erfahrung TEXT,
+            digitale_kenntnisse INTEGER,
+            ki_erfahrung TEXT,
+            vorherige_kenntnis INTEGER,
+            bevorzugter_modus TEXT,
+            abschluss_kommentar TEXT,
+            abgeschlossen_am TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS evaluation_durchlaeufe (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            teilnehmer_code TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            modus TEXT NOT NULL,
+            szenario TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'offen',
+            gestartet_am TEXT,
+            abgeschlossen_am TEXT,
+            modell_id TEXT,
+            sus_antworten TEXT,
+            sus_score REAL,
+            feedback TEXT,
+            FOREIGN KEY (teilnehmer_code)
+                REFERENCES evaluation_teilnehmende(teilnehmer_code),
+            UNIQUE(teilnehmer_code, position)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS evaluation_aufgaben (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            durchlauf_id INTEGER NOT NULL,
+            aufgabe_code TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'offen',
+            gestartet_am TEXT,
+            abgeschlossen_am TEXT,
+            dauer_ms INTEGER,
+            erwartung_json TEXT,
+            antwort_json TEXT,
+            erfolgreich INTEGER,
+            validierung_json TEXT,
+            schwierigkeit INTEGER,
+            kommentar TEXT,
+            chat_thread_id TEXT,
+            FOREIGN KEY (durchlauf_id) REFERENCES evaluation_durchlaeufe(id),
+            UNIQUE(durchlauf_id, aufgabe_code)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS evaluation_ereignisse (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aufgabe_id INTEGER NOT NULL,
+            quelle TEXT NOT NULL,
+            ereignis_id TEXT,
+            aktion TEXT NOT NULL,
+            argumente_json TEXT,
+            status TEXT NOT NULL,
+            dauer_ms INTEGER,
+            erstellt_am TEXT NOT NULL,
+            FOREIGN KEY (aufgabe_id) REFERENCES evaluation_aufgaben(id)
+        )
+    """)

@@ -36,6 +36,11 @@ from views.bestellhistorie import show_bestellhistorie  # noqa: E402
 from views.analytics import show_analytics  # noqa: E402
 from views.metriken import show_metriken  # noqa: E402
 from views.manuell import show_manuell  # noqa: E402
+from views.evaluation import (  # noqa: E402
+    render_active_evaluation_task,
+    restore_evaluation_context,
+    show_evaluation,
+)
 from views.auswertung import show_auswertung  # noqa: E402
 from views.sidebar import render_sidebar  # noqa: E402
 from services.session import (  # noqa: E402
@@ -80,10 +85,12 @@ elif st.session_state.seite == "Chat":
     st.session_state.seite = "Agent"
 
 
+restore_evaluation_context()
 render_sidebar()
 
 
 seite = st.session_state.seite
+render_active_evaluation_task()
 
 if seite == "Agent":
     show_chat()
@@ -91,6 +98,8 @@ elif seite == "Dashboard":
     show_dashboard()
 elif seite == "Manuell":
     show_manuell()
+elif seite == "Evaluation":
+    show_evaluation()
 elif seite == "Bestellhistorie":
     show_bestellhistorie()
 elif seite == "Analysen":
