@@ -6,10 +6,11 @@ Der Agent prüft Bestände, erkennt Engpässe, vergleicht Lieferanten, erstellt 
 ## Funktionsumfang
 
 ### KI-Agent (LangGraph ReAct)
-- 16 spezialisierte Tools für Lager, Budget, Bestellung, Prognose, Lieferanten und Stammdaten
+- 17 spezialisierte Tools für Lager, Budget, Bestellung, Prognose, Lieferanten und Stammdaten
 - Human-in-the-Loop mit Smart-Approve (gleicher Tool-Typ wird im Schritt automatisch fortgesetzt)
 - Batch-Tools für Sammelbestellungen und Sammelprognosen
 - Bestellungen können nach Lieferantenvergleich mit ausgewähltem Lieferanten angelegt werden
+- Produkte lassen sich über vollständige oder teilweise Namen gezielt auflösen
 - Persistente Sessions via `SqliteSaver` (`checkpoints.db`)
 - Schutzlimit für zu viele Tool-Calls pro Schritt
 - Recovery bei unterbrochenen Agent-Läufen
@@ -146,6 +147,10 @@ Anwendungstabellen:
 - `agent_log` (inkl. `duration_ms`)
 - `chat_sessions`
 - `chat_nachrichten`
+- `evaluation_teilnehmende`
+- `evaluation_durchlaeufe`
+- `evaluation_aufgaben`
+- `evaluation_ereignisse`
 
 Siehe Details in:
 - `docs/ARCHITEKTUR_BERICHT.md`

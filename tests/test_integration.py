@@ -4,6 +4,7 @@ Diese Tests prüfen ob mehrere Tools korrekt zusammenarbeiten
 und die Datenbank-Konsistenz gewahrt bleibt.
 """
 import pytest
+import re
 from unittest.mock import patch
 from agent.tools.lager import check_lagerbestand, check_engpaesse
 from agent.tools.bestellungen import erstelle_bestellung
@@ -122,6 +123,32 @@ class TestKomplettWorkflow:
         conn.close()
         assert bestand >= mindest
 
+    @patch("agent.tools.bestellungen.send_telegram", return_value=True)
+    def test_produktsuche_bis_bestellung_beim_empfohlenen_lieferanten(
+        self,
+        mock_telegram,
+    ):
+        """Ein Produktname wird bis zur eindeutigen Lieferantenbestellung aufgelöst."""
+        suche = check_lagerbestand.invoke({
+            "suchbegriff": "Sechskantmutter M10",
+        })
+        produkt_treffer = re.search(r"\[ID:(\d+)\]", suche)
+        assert produkt_treffer
+        produkt_id = int(produkt_treffer.group(1))
+
+        vergleich = vergleiche_lieferanten.invoke({"produkt_id": produkt_id})
+        empfehlung = re.search(r"Empfehlung: .+ \(ID: (\d+),", vergleich)
+        assert empfehlung
+        lieferant_id = int(empfehlung.group(1))
+
+        bestellung = erstelle_bestellung.invoke({
+            "produkt_id": produkt_id,
+            "menge": 40,
+            "lieferant_id": lieferant_id,
+        })
+        assert "Bestellung erfolgreich angelegt" in bestellung
+        assert f"ID: {lieferant_id}" in bestellung
+
 
 class TestDatenbank_Konsistenz:
     """Tests für die Datenbank-Integritaet."""
@@ -161,4 +188,12 @@ class TestDatenbank_Konsistenz:
             )
         """)
         assert cursor.fetchone()[0] == 0
+        conn.close()
+
+    def test_fremdschluesselpruefung_ist_aktiv(self):
+        """Jede Anwendungsverbindung erzwingt deklarierte Fremdschlüssel."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA foreign_keys")
+        assert cursor.fetchone()[0] == 1
         conn.close()

@@ -65,3 +65,13 @@ class TestErstelleBudget:
         })
         assert "Fehler" in result
         assert "zwischen 1 und 4" in result
+
+    def test_validiert_jahr(self):
+        """Jahre außerhalb des unterstützten Bereichs werden abgelehnt."""
+        result = erstelle_budget.invoke({
+            "quartal": 1,
+            "jahr": 1900,
+            "gesamtbudget": 1000.0,
+        })
+        assert "Fehler" in result
+        assert "Jahr" in result

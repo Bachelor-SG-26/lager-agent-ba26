@@ -221,7 +221,7 @@ def test_falsche_t3_aktion_wird_als_tatsaechlicher_zustand_gespeichert(monkeypat
 
     assert ergebnis["erfolgreich"] is False
     assert antwort["beobachteter_zustand"]["neue_bestellungen"][0]["menge"] == 39
-    assert "Protokollierte fachliche Aktionen" in bericht
+    assert "Fachliche Aktionen" in bericht
     assert "erstelle_bestellung" in bericht
     assert "39" in bericht
 
@@ -389,8 +389,9 @@ def test_beendete_einzelaufgabe_kann_nachvollziehbar_wiederholt_werden():
     aufgaben_csv = exportiere_aufgaben_csv().decode("utf-8-sig")
     ereignisse_csv = exportiere_ereignisse_csv().decode("utf-8-sig")
 
-    assert "Versuch 2 (maßgeblich)" in bericht
-    assert "Internet- oder Verbindungsproblem" in bericht
+    assert "Versuch 2" not in bericht
+    assert "Internet- oder Verbindungsproblem" not in bericht
+    assert "Vorheriges Ergebnis" not in bericht
     assert "Wiederholung erfolgreich" in bericht
     assert "versuch" in aufgaben_csv.splitlines()[0]
     assert "versuch" in ereignisse_csv.splitlines()[0]
@@ -457,7 +458,7 @@ def test_teilnehmerbericht_enthält_kriterien_und_maskiert_eingaben():
 
     bericht = exportiere_teilnehmerbericht_html("P1").decode("utf-8")
 
-    assert "Vorausgesetzter Zustand" in bericht
+    assert "<h4>Soll</h4>" in bericht
     assert "Eingegebene Werte korrekt" in bericht
     assert "Teilnehmerprofil" in bericht
     assert "&lt;script&gt;nicht ausführen&lt;/script&gt;" in bericht

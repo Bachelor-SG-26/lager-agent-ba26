@@ -26,6 +26,9 @@ def prognostiziere_bedarf(produkt_id: int, tage_voraus: int = PROGNOSE_DEFAULT_T
         produkt_id: Die ID des Produkts
         tage_voraus: Prognosezeitraum in Tagen (Standard: 30)
     """
+    if tage_voraus <= 0:
+        return "Fehler: Prognosezeitraum muss größer als 0 Tage sein."
+
     try:
         with db_connection() as (conn, cursor):
             cursor.execute("""

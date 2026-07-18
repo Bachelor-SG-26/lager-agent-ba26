@@ -45,6 +45,7 @@ def _lade_env_werte():
 
 def _speichere_env(werte):
     """Schreibt die Werte in die .env Datei."""
+    ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
     zeilen = [
         "# NVIDIA AI Endpoints – API-Schlüssel und Modell",
         "# Registrierung unter: https://build.nvidia.com/",

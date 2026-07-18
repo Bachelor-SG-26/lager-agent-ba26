@@ -1,16 +1,9 @@
 """Tests für die testbaren Pfade in views/chat/processing und recovery:
 Fehlerrouting über handle_agent_error und ist_api_fehler.
 """
-import sys
-import types
 from types import SimpleNamespace
 
-# agent.agent muss importierbar sein (wird in views/chat über agent_bridge geladen)
-fake_agent_module = types.ModuleType("agent.agent")
-fake_agent_module.build_agent = lambda: SimpleNamespace()
-sys.modules.setdefault("agent.agent", fake_agent_module)
-
-from views.chat import recovery, state  # noqa: E402
+from views.chat import processing, recovery, state
 
 
 class AttrDict(dict):
@@ -54,6 +47,7 @@ def test_ist_api_fehler_rate_limit():
 
 
 def test_ist_api_fehler_gateway():
+    assert recovery.ist_api_fehler("500 Internal Server Error") is True
     assert recovery.ist_api_fehler("502 Bad Gateway") is True
     assert recovery.ist_api_fehler("503 service unavailable") is True
     assert recovery.ist_api_fehler("Gateway Timeout after 300s") is True
@@ -95,6 +89,27 @@ def test_handle_agent_error_api_fehler_wird_behandelt(monkeypatch):
     assert len(captured["messages"]) == 1
     msg = captured["messages"][0]["content"]
     assert "KI-API" in msg or "API" in msg
+
+
+def test_handle_agent_error_interner_serverfehler_wird_behandelt(monkeypatch):
+    """NVIDIA-Fehler 500 werden ohne technische Rohdaten angezeigt."""
+    session_state = AttrDict(
+        {
+            "config": {"configurable": {"thread_id": "t"}},
+            "messages": [],
+        }
+    )
+    captured = _patch(monkeypatch, session_state)
+
+    err = Exception("[500] invalid type: unit variant, expected newtype variant")
+    handled = recovery.handle_agent_error(err)
+
+    assert handled is True
+    assert captured["resets"] == 1
+    assert captured["messages"][0]["content"] == (
+        "Die KI-API ist gerade nicht erreichbar (Rate-Limit oder Serverfehler). "
+        "Bitte warte einen Moment und versuche es erneut."
+    )
 
 
 def test_handle_agent_error_modellzugriff_wird_behandelt(monkeypatch):
@@ -169,3 +184,37 @@ def test_handle_agent_error_unbekannter_fehler_wird_nicht_behandelt(monkeypatch)
     assert handled is False
     assert captured["resets"] == 0
     assert captured["messages"] == []
+
+
+def test_erkennt_leere_agentenantwort():
+    """Nur Nachrichten ohne Text und Tool-Aufrufe gelten als leer."""
+    assert processing._ist_leere_agentenantwort(
+        SimpleNamespace(content="", tool_calls=[])
+    )
+    assert not processing._ist_leere_agentenantwort(
+        SimpleNamespace(content="Antwort", tool_calls=[])
+    )
+    assert not processing._ist_leere_agentenantwort(
+        SimpleNamespace(content="", tool_calls=[{"name": "check_budget"}])
+    )
+
+
+def test_fordert_nach_leerer_antwort_einmalige_fortsetzung_an(monkeypatch):
+    """Die Recovery ergänzt eine interne Fortsetzungsanweisung."""
+    session_state = AttrDict({"config": {"configurable": {"thread_id": "t"}}})
+    monkeypatch.setattr(processing, "st", SimpleNamespace(session_state=session_state))
+    antwort = SimpleNamespace(content="Fortgesetzt", tool_calls=[])
+    captured = {}
+
+    def fake_invoke(input_, config):
+        captured["input"] = input_
+        captured["config"] = config
+        return {"messages": [antwort]}
+
+    monkeypatch.setattr(processing.agent_bridge, "invoke", fake_invoke)
+
+    result = processing._setze_nach_leerer_antwort_fort()
+
+    assert result is antwort
+    assert "letzte Modellausgabe war leer" in captured["input"]["messages"][0].content
+    assert captured["config"] == session_state.config

@@ -38,3 +38,23 @@ def test_system_prompt_contains_complete_tool_catalog():
 
     for tool_name in TOOL_NAMES:
         assert f"`{tool_name}`" in SYSTEM_PROMPT
+
+
+def test_system_prompt_resolves_product_names_before_follow_up_tools():
+    """Prüft die gezielte Namensauflösung für nachfolgende Produkt-Tools."""
+    assert "`check_lagerbestand` mit `suchbegriff`" in SYSTEM_PROMPT
+    assert "gefundene Produkt-ID für weitere Tools" in SYSTEM_PROMPT
+
+
+def test_system_prompt_avoids_redundant_supplier_confirmation():
+    """Prüft die direkte Fortsetzung bei bereits genanntem Auswahlkriterium."""
+    assert "weder ein Lieferant noch ein Auswahlkriterium genannt" in SYSTEM_PROMPT
+    assert "nicht erneut nach einem Kriterium fragen" in SYSTEM_PROMPT
+    assert "die passende `lieferant_id`" in SYSTEM_PROMPT
+
+
+def test_system_prompt_forbids_placeholder_ids_in_dependent_steps():
+    """Prüft, ob Folgeschritte nur mit realen Ergebnissen geplant werden."""
+    assert "jedes Tool-Ergebnis abwarten" in SYSTEM_PROMPT
+    assert "niemals Platzhalter oder erfundene IDs" in SYSTEM_PROMPT
+    assert "empfohlen oder ohne nähere Gewichtung = bestes Verhältnis" in SYSTEM_PROMPT

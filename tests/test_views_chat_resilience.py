@@ -1,10 +1,4 @@
-import sys
-import types
 from types import SimpleNamespace
-
-fake_agent_module = types.ModuleType("agent.agent")
-fake_agent_module.build_agent = lambda: SimpleNamespace()
-sys.modules.setdefault("agent.agent", fake_agent_module)
 
 from views.chat import recovery, state
 

@@ -31,6 +31,7 @@ def build_agent(api_key=None, model_name=None):
         model=resolved_model,
         api_key=resolved_key,
         max_completion_tokens=4096,
+        temperature=0,
     )
     return create_react_agent(
         model=llm,

@@ -173,6 +173,12 @@ class TestCheckBestellhistorie:
         assert "Euro" in result
         assert "Stück" in result
 
+    def test_negatives_limit_wird_abgelehnt(self):
+        """Negative Ergebnisgrenzen sind ungültig."""
+        result = check_bestellhistorie.invoke({"limit": -1})
+
+        assert result == "Fehler: Limit darf nicht negativ sein."
+
 
 class TestErstelleBestellungBatch:
     """Tests für die Sammelbestellung."""

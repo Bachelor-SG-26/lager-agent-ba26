@@ -21,6 +21,32 @@ from views.chat.recovery import handle_agent_error
 
 logger = get_logger("views.chat.processing")
 
+_LEERE_ANTWORT_FORTSETZUNG = (
+    "Die letzte Modellausgabe war leer. Setze die ursprüngliche Nutzeranfrage "
+    "anhand der vorhandenen Tool-Ergebnisse fort. Antworte entweder mit dem "
+    "nächsten erforderlichen Tool-Aufruf oder mit einer vollständigen Antwort."
+)
+
+
+def _ist_leere_agentenantwort(message):
+    """Erkennt einen beendeten Agentenschritt ohne Text und ohne Tool-Aufruf."""
+    if message is None:
+        return False
+    content = str(getattr(message, "content", "") or "").strip()
+    tool_calls = getattr(message, "tool_calls", None) or []
+    return not content and not tool_calls
+
+
+def _setze_nach_leerer_antwort_fort():
+    """Fordert einmalig eine verwertbare Fortsetzung vom Agenten an."""
+    logger.warning("Leere Agentenantwort erkannt, einmalige Fortsetzung wird angefordert.")
+    result = agent_bridge.invoke(
+        {"messages": [HumanMessage(content=_LEERE_ANTWORT_FORTSETZUNG)]},
+        st.session_state.config,
+    )
+    messages = result.get("messages", [])
+    return messages[-1] if messages else None
+
 
 # ─────────────────────────────────────────
 #  Tool-Ausführung
@@ -148,14 +174,43 @@ def execute_approved_tools(container):
             state = agent_bridge.get_state(st.session_state.config)
             if state.values.get("messages"):
                 last = state.values["messages"][-1]
-                if (
-                    hasattr(last, "content")
-                    and last.content
-                    and not (hasattr(last, "tool_calls") and last.tool_calls)
-                ):
+                if _ist_leere_agentenantwort(last):
+                    last = _setze_nach_leerer_antwort_fort()
+
+                if last and getattr(last, "tool_calls", None):
+                    new_calls = last.tool_calls
+                    if len(new_calls) > MAX_TOOL_CALLS_PRO_SCHRITT:
+                        st.session_state.pending_tool_calls = new_calls
+                        cancel_pending_tools(
+                            reason=(
+                                f"Zu viele Tool-Calls in einem Schritt ({len(new_calls)}). "
+                                f"Maximal erlaubt: {MAX_TOOL_CALLS_PRO_SCHRITT}."
+                            ),
+                            user_msg="Aktion wegen zu vieler geplanter Aufrufe abgebrochen.",
+                        )
+                    st.session_state.tools_used = tools_used
+                    st.session_state.warte_auf_bestaetigung = True
+                    st.session_state.pending_tool_calls = new_calls
+                    st.session_state.agent_arbeitet = False
+                    st.rerun()
+
+                if last and str(getattr(last, "content", "") or "").strip():
                     persist_message("assistant", last.content, tools_used if tools_used else None)
+                else:
+                    persist_message(
+                        "assistant",
+                        "Das ausgewählte Modell hat keine verwertbare Antwort geliefert. "
+                        "Bitte versuche die Anfrage erneut oder wähle ein anderes Modell.",
+                    )
         except Exception as e:
+            if handle_agent_error(e):
+                st.rerun()
             logger.warning("Fallback State-Abfrage fehlgeschlagen: %s", e)
+            persist_message(
+                "assistant",
+                "Die Bearbeitung konnte nach einer leeren Modellantwort nicht "
+                "fortgesetzt werden. Bitte versuche die Anfrage erneut.",
+            )
     reset_state()
     st.rerun()
 
@@ -242,7 +297,16 @@ def process_user_input(container, user_input):
             state = agent_bridge.get_state(st.session_state.config)
             last_msg = state.values["messages"][-1]
 
-            if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+            if not full_text and _ist_leere_agentenantwort(last_msg):
+                try:
+                    last_msg = _setze_nach_leerer_antwort_fort()
+                except Exception as e:
+                    if handle_agent_error(e):
+                        st.rerun()
+                        return
+                    logger.warning("Fortsetzung nach leerer Agentenantwort fehlgeschlagen: %s", e)
+
+            if last_msg and hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
                 if len(last_msg.tool_calls) > MAX_TOOL_CALLS_PRO_SCHRITT:
                     st.session_state.pending_tool_calls = last_msg.tool_calls
                     cancel_pending_tools(
@@ -269,7 +333,12 @@ def process_user_input(container, user_input):
                 st.session_state.agent_arbeitet = False
                 st.rerun()
             else:
-                content = full_text or last_msg.content
+                content = full_text or str(getattr(last_msg, "content", "") or "").strip()
+                if not content:
+                    content = (
+                        "Das ausgewählte Modell hat keine verwertbare Antwort geliefert. "
+                        "Bitte versuche die Anfrage erneut oder wähle ein anderes Modell."
+                    )
                 thinking.markdown(content)
                 persist_message("assistant", content)
                 reset_state()

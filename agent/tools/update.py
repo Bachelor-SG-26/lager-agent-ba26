@@ -30,11 +30,17 @@ def aktualisiere_produkt(
         return "Fehler: Preis muss größer als 0 sein."
     if bestand is not None and bestand < 0:
         return "Fehler: Bestand darf nicht negativ sein."
+    if name is not None:
+        name = name.strip()
 
     try:
         with db_connection(commit=True) as (conn, cursor):
             cursor.execute(
-                "SELECT name, bestand, mindestbestand, preis_pro_einheit FROM produkte WHERE id = ?",
+                """
+                SELECT name, bestand, mindestbestand, preis_pro_einheit,
+                       standard_lieferant_id
+                FROM produkte WHERE id = ?
+                """,
                 (produkt_id,),
             )
             produkt = cursor.fetchone()
@@ -46,7 +52,10 @@ def aktualisiere_produkt(
             params = []
 
             if name is not None:
-                cursor.execute("SELECT id FROM produkte WHERE name = ? AND id != ?", (name, produkt_id))
+                cursor.execute(
+                    "SELECT id FROM produkte WHERE name = ? COLLATE NOCASE AND id != ?",
+                    (name, produkt_id),
+                )
                 if cursor.fetchone():
                     return f"Fehler: Produkt '{name}' existiert bereits."
                 aenderungen.append("name = ?")
@@ -70,6 +79,18 @@ def aktualisiere_produkt(
             params.append(produkt_id)
             sql = f"UPDATE produkte SET {', '.join(aenderungen)} WHERE id = ?"
             cursor.execute(sql, params)
+
+            if preis_pro_einheit is not None and produkt[4] is not None:
+                cursor.execute(
+                    """
+                    INSERT INTO produkt_lieferanten (
+                        produkt_id, lieferant_id, preis, lieferzeit_tage
+                    ) VALUES (?, ?, ?, NULL)
+                    ON CONFLICT(produkt_id, lieferant_id)
+                    DO UPDATE SET preis = excluded.preis
+                    """,
+                    (produkt_id, produkt[4], preis_pro_einheit),
+                )
 
         geaendert = []
         if name is not None:
@@ -115,6 +136,8 @@ def aktualisiere_lieferant(
         return "Fehler: Lieferzeit darf nicht negativ sein."
     if name is not None and not name.strip():
         return "Fehler: Lieferantenname darf nicht leer sein."
+    if name is not None:
+        name = name.strip()
 
     try:
         with db_connection(commit=True) as (conn, cursor):
@@ -131,7 +154,10 @@ def aktualisiere_lieferant(
             params = []
 
             if name is not None:
-                cursor.execute("SELECT id FROM lieferanten WHERE name = ? AND id != ?", (name, lieferant_id))
+                cursor.execute(
+                    "SELECT id FROM lieferanten WHERE name = ? COLLATE NOCASE AND id != ?",
+                    (name, lieferant_id),
+                )
                 if cursor.fetchone():
                     return f"Fehler: Lieferant '{name}' existiert bereits."
                 aenderungen.append("name = ?")

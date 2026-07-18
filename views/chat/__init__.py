@@ -48,7 +48,7 @@ def _reload_bei_seitenwechsel():
     Ein Full-Reload stellt einen konsistenten Zustand her.
 
     Guard: Nur reloaden wenn vorher eine andere Seite aktiv war. Nach dem Reload
-    ist session_state leer — die Bedingung kann nicht nochmal ausloesen.
+    ist session_state leer — die Bedingung kann nicht nochmal auslösen.
     """
     if st.session_state.get("_evaluation_task_id"):
         return
@@ -97,8 +97,8 @@ def show_chat():
     )
     placeholder = "Agent arbeitet..." if st.session_state.agent_arbeitet else "Frag den Agenten..."
 
-    # WICHTIG: Chat-Input UND Stop-Button FRUEH rendern — bevor langsame
-    # Operationen (Recovery/Streaming) die Render-Reihenfolge verzoegern.
+    # WICHTIG: Chat-Input UND Stop-Button FRÜH rendern — bevor langsame
+    # Operationen (Recovery/Streaming) die Render-Reihenfolge verzögern.
     # Sonst waren beide Elemente während Agent-Arbeit unsichtbar.
     user_input = st.chat_input(placeholder, disabled=is_busy)
     if is_busy:

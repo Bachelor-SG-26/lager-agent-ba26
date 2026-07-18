@@ -15,11 +15,13 @@ logger = get_logger("views.chat.recovery")
 
 
 def ist_api_fehler(error_msg):
-    """Prüft ob ein transientes API-Problem vorliegt (Rate-Limit oder Gateway)."""
+    """Prüft, ob ein transientes API- oder Serverproblem vorliegt."""
     text = (error_msg or "").lower()
     return (
         "429" in text
         or "too many requests" in text
+        or "500" in text
+        or "internal server error" in text
         or "502" in text
         or "bad gateway" in text
         or "503" in text
@@ -136,7 +138,7 @@ def handle_agent_error(error: Exception) -> bool:
         logger.warning("API nicht erreichbar: %s", error)
         persist_message(
             "assistant",
-            "Die KI-API ist gerade nicht erreichbar (Rate-Limit oder Gateway-Fehler). "
+            "Die KI-API ist gerade nicht erreichbar (Rate-Limit oder Serverfehler). "
             "Bitte warte einen Moment und versuche es erneut.",
         )
         reset_state()
@@ -229,7 +231,7 @@ def execute_recovery(container):
                             tools = st.session_state.get("tools_used")
                             persist_message("assistant", content, tools if tools else None)
                 except Exception as e:
-                    # Bekannte transiente Fehler (429/502/504) als Chat-Nachricht melden,
+                    # Bekannte transiente API-/Serverfehler als Chat-Nachricht melden,
                     # statt stumm im Log zu versenken.
                     if not handle_agent_error(e):
                         logger.warning("Recovery fehlgeschlagen: %s", e)

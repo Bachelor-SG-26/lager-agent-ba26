@@ -26,6 +26,7 @@ def erstelle_produkt(
         return "Fehler: Mindestbestand darf nicht negativ sein."
     if preis_pro_einheit <= 0:
         return "Fehler: Preis muss größer als 0 sein."
+    name = name.strip()
 
     try:
         with db_connection(commit=True) as (conn, cursor):
@@ -34,7 +35,10 @@ def erstelle_produkt(
             if not lieferant:
                 return f"Fehler: Lieferant mit ID {lieferant_id} nicht gefunden."
 
-            cursor.execute("SELECT id FROM produkte WHERE name = ?", (name,))
+            cursor.execute(
+                "SELECT id FROM produkte WHERE name = ? COLLATE NOCASE",
+                (name,),
+            )
             if cursor.fetchone():
                 return f"Fehler: Produkt '{name}' existiert bereits."
 

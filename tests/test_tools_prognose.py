@@ -44,6 +44,13 @@ class TestPrognostiziereBedarf:
         assert "Fehler" in result
         assert "nicht gefunden" in result
 
+    def test_lehnt_nichtpositiven_zeitraum_ab(self):
+        """Ein Prognosezeitraum muss mindestens einen Tag umfassen."""
+        result = prognostiziere_bedarf.invoke({"produkt_id": 1, "tage_voraus": 0})
+
+        assert "Fehler" in result
+        assert "größer als 0" in result
+
 
 class TestPrognostiziereBedarfBatch:
     """Tests für die Batch-Bedarfsprognose."""

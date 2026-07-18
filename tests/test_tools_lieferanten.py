@@ -57,7 +57,15 @@ class TestVergleicheLieferanten:
         """Es sollte eine Empfehlung gegeben werden."""
         result = vergleiche_lieferanten.invoke({"produkt_id": 1})
         assert "Empfehlung:" in result
+        assert "ID:" in result
         assert "Preis-Leistungs-Verhältnis" in result
+
+    def test_zeigt_lieferanten_ids_fuer_die_bestellung(self):
+        """Vergleich und Empfehlung liefern die benötigten Lieferanten-IDs."""
+        result = vergleiche_lieferanten.invoke({"produkt_id": 1})
+
+        assert " ID Lieferant" in result
+        assert "(ID:" in result
 
     def test_ungueltige_produkt_id(self):
         """Nicht existierendes Produkt sollte Fehler liefern."""

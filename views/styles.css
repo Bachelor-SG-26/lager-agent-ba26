@@ -8,7 +8,7 @@
 }
 
 /* Chat-Input: nur Breite zentrieren, Positionierung überlassen wir Streamlit.
-   Kein "bottom: X !important" mehr — das hat nach Reload Layout-Konflikte ausgeloest. */
+   Kein "bottom: X !important" mehr — das hat nach Reload Layout-Konflikte ausgelöst. */
 [data-testid="stChatInput"] {
     max-width: var(--chat-input-width);
     margin-left: auto;
@@ -35,7 +35,7 @@
     min-height: 100%;
 }
 
-/* Spacer-Container nimmt allen freien Platz, drueckt Messages an den Boden.
+/* Spacer-Container nimmt allen freien Platz, drückt Messages an den Boden.
    Der Selektor trifft den stElementContainer (nicht das innere Markdown-Div),
    damit flex-grow korrekt wirkt. */
 .st-key-chat_scroll_container [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(.chat-start-spacer) {
@@ -138,7 +138,7 @@
     width: 24rem !important;
 }
 
-/* Stop-Button: feste Position unten rechts, unabhaengig von Chat-Input-Breite */
+/* Stop-Button: feste Position unten rechts, unabhängig von Chat-Input-Breite */
 .st-key-stop_icon_btn {
     position: fixed;
     right: 24px;

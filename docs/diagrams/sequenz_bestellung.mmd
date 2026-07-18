@@ -3,6 +3,7 @@ sequenceDiagram
     participant UI as Chat-UI
     participant Agent as ReAct-Agent
     participant LLM as NVIDIA LLM
+    participant LB as check_lagerbestand
     participant VL as vergleiche_lieferanten
     participant EB as erstelle_bestellung
     participant DB as SQLite DB
@@ -13,6 +14,15 @@ sequenceDiagram
     User->>UI: "Bestelle Schrauben M4x10 nach"
     UI->>Agent: HumanMessage
     Agent->>LLM: Nachricht + System-Prompt
+
+    LLM->>Agent: tool_call: check_lagerbestand(suchbegriff)
+    Agent-->>UI: Bestätigung anfordern
+    User->>UI: Ausführen
+    Agent->>LB: Produktname gezielt suchen
+    LB->>DB: SELECT Produkt mit Namensfilter
+    DB-->>LB: Produkt-ID und Bestandsdaten
+    LB-->>Agent: Eindeutiger Produkttreffer
+    Agent->>LLM: Produkt-ID und Bestandsdaten
 
     Note over LLM: "Regel: Vor jeder Bestellung<br/>Lieferanten vergleichen"
 
@@ -39,15 +49,19 @@ sequenceDiagram
     VL->>DB: SELECT lieferanten mit Preisen
     DB-->>VL: 4+ Lieferanten
     VL->>VL: Scoring (40% Preis, 30% Lieferzeit, 30% Bewertung)
-    VL-->>Agent: Vergleichstabelle + Empfehlung
+    VL-->>Agent: Vergleichstabelle + Empfehlung mit Lieferanten-IDs
 
     Agent->>LLM: Lieferanten-Vergleich
-    LLM-->>UI: "Hier sind die Lieferanten... Welchen möchtest du?"
-    UI-->>User: Lieferantenauswahl anzeigen
 
-    User->>UI: "Nimm den günstigsten"
-    UI->>Agent: HumanMessage
-    Agent->>LLM: Auswahl
+    alt Auswahlkriterium bereits im Auftrag genannt
+        Note over LLM: Empfehlungs-ID direkt übernehmen
+    else Keine Lieferantenwahl genannt
+        LLM-->>UI: "Hier sind die Lieferanten... Welchen möchtest du?"
+        UI-->>User: Lieferantenauswahl anzeigen
+        User->>UI: "Nimm den günstigsten"
+        UI->>Agent: HumanMessage
+        Agent->>LLM: Auswahl
+    end
 
     LLM->>Agent: tool_call: erstelle_bestellung(produkt_id, menge, lieferant_id)
     Agent-->>UI: Bestätigung anfordern

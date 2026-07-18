@@ -49,26 +49,34 @@ def _berechne_beste_empfehlung(lieferanten):
 
 def _formatiere_vergleich(produkt_name, lieferanten):
     """Formatiert die Lieferanten-Vergleichstabelle als Text."""
-    guenstigster = lieferanten[0][1]
+    guenstigster = lieferanten[0][2]
 
     ergebnis = f"Lieferantenvergleich für '{produkt_name}':\n\n"
-    ergebnis += f"  {'Lieferant':<20} {'Preis':>8} {'Lieferzeit':>12} {'Bewertung':>10}  Status\n"
-    ergebnis += f"  {'-' * 70}\n"
+    ergebnis += f"  {'ID':>3} {'Lieferant':<20} {'Preis':>8} {'Lieferzeit':>12} {'Bewertung':>10}  Status\n"
+    ergebnis += f"  {'-' * 74}\n"
 
     for l in lieferanten:
-        if l[4]:
+        if l[5]:
             marker = "Standard"
-        elif l[1] == guenstigster:
+        elif l[2] == guenstigster:
             marker = "Günstigster"
         else:
             marker = ""
         ergebnis += (
-            f"  {l[0]:<20} {l[1]:>6.2f} E {l[2]:>9} Tage "
-            f"{l[3]:>8.1f}/5.0  {marker}\n"
+            f"  {l[0]:>3} {l[1]:<20} {l[2]:>6.2f} E {l[3]:>9} Tage "
+            f"{l[4]:>8.1f}/5.0  {marker}\n"
         )
 
-    best_name = _berechne_beste_empfehlung(lieferanten)
-    ergebnis += f"\n  Empfehlung: {best_name} (bestes Preis-Leistungs-Verhältnis)"
+    bewertungsdaten = [
+        (l[1], l[2], l[3], l[4], bool(l[5]))
+        for l in lieferanten
+    ]
+    best_name = _berechne_beste_empfehlung(bewertungsdaten)
+    best_id = next(l[0] for l in lieferanten if l[1] == best_name)
+    ergebnis += (
+        f"\n  Empfehlung: {best_name} "
+        f"(ID: {best_id}, bestes Preis-Leistungs-Verhältnis)"
+    )
     return ergebnis
 
 
@@ -144,6 +152,7 @@ def vergleiche_lieferanten(produkt_id: int) -> str:
 
             cursor.execute("""
                 SELECT
+                    l.id,
                     l.name,
                     pl.preis,
                     COALESCE(pl.lieferzeit_tage, l.lieferzeit_tage) as lieferzeit,
@@ -242,10 +251,14 @@ def erstelle_lieferant(
         return "Fehler: Lieferzeit darf nicht negativ sein."
     if not name.strip():
         return "Fehler: Lieferantenname darf nicht leer sein."
+    name = name.strip()
 
     try:
         with db_connection(commit=True) as (conn, cursor):
-            cursor.execute("SELECT id FROM lieferanten WHERE name = ?", (name,))
+            cursor.execute(
+                "SELECT id FROM lieferanten WHERE name = ? COLLATE NOCASE",
+                (name,),
+            )
             if cursor.fetchone():
                 return f"Fehler: Lieferant '{name}' existiert bereits."
 

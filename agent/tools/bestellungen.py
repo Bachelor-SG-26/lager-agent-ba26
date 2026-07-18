@@ -61,7 +61,7 @@ def _generiere_bestell_nr(cursor):
 
 
 def _lade_bestellprodukt(cursor, produkt_id, lieferant_id=None):
-    """Laedt Produktdaten mit ausgewaehltem oder Standard-Lieferanten."""
+    """Lädt Produktdaten mit ausgewähltem oder Standard-Lieferanten."""
     cursor.execute("""
         SELECT p.name, p.bestand, p.standard_lieferant_id
         FROM produkte p
@@ -202,7 +202,7 @@ def erstelle_bestellung(produkt_id: int, menge: int, lieferant_id: int = None) -
     Args:
         produkt_id: Die ID des Produkts
         menge: Die Anzahl der zu bestellenden Einheiten
-        lieferant_id: Optional die ID des ausgewaehlten Lieferanten.
+        lieferant_id: Optional die ID des ausgewählten Lieferanten.
             Ohne Angabe wird der Standardlieferant genutzt.
     """
     if menge <= 0:
@@ -319,6 +319,9 @@ def check_bestellhistorie(limit: int = BESTELLHISTORIE_DEFAULT_LIMIT) -> str:
     Args:
         limit: Maximale Anzahl Bestellungen (Standard: 20, 0 = alle)
     """
+    if limit < 0:
+        return "Fehler: Limit darf nicht negativ sein."
+
     try:
         with db_connection() as (conn, cursor):
             cursor.execute("SELECT COUNT(*) FROM bestellungen")
@@ -332,8 +335,10 @@ def check_bestellhistorie(limit: int = BESTELLHISTORIE_DEFAULT_LIMIT) -> str:
                 ORDER BY b.datum DESC
             """
             if limit > 0:
-                query += f" LIMIT {limit}"
-            cursor.execute(query)
+                query += " LIMIT ?"
+                cursor.execute(query, (limit,))
+            else:
+                cursor.execute(query)
             bestellungen = cursor.fetchall()
 
         if not bestellungen:

@@ -3,14 +3,12 @@ import pandas as pd
 from database.database import db_connection
 
 
-EXECUTION_STATUSES = ("ausgefuehrt", "fehlgeschlagen", "abgelehnt_budget")
-
-
 def _lade_tool_status(zeitraum_tage):
+    """Lädt ausgeführte, fehlgeschlagene und budgetblockierte Tool-Aufrufe."""
     query = """
         SELECT tool_call_id, tool_name, status, datum, duration_ms
         FROM agent_log
-        WHERE datum >= datetime('now', ?)
+        WHERE datetime(datum) >= datetime('now', ?)
           AND status IN ('ausgefuehrt', 'fehlgeschlagen', 'abgelehnt_budget')
     """
     with db_connection() as (conn, cursor):
@@ -21,10 +19,11 @@ def _lade_tool_status(zeitraum_tage):
 
 
 def _lade_bestellungen(zeitraum_tage):
+    """Lädt Bestellwerte aus dem gewählten Auswertungszeitraum."""
     query = """
         SELECT datum, gesamtkosten
         FROM bestellungen
-        WHERE datum >= datetime('now', ?)
+        WHERE datetime(datum) >= datetime('now', ?)
     """
     with db_connection() as (conn, cursor):
         df = pd.read_sql_query(query, conn, params=(f"-{zeitraum_tage} days",))
@@ -34,16 +33,19 @@ def _lade_bestellungen(zeitraum_tage):
 
 
 def _quote(zaehler, nenner):
+    """Berechnet eine Prozentquote und behandelt einen leeren Nenner."""
     return (zaehler / nenner * 100.0) if nenner else 0.0
 
 
 def _p95(values):
+    """Berechnet das 95-Prozent-Quantil einer Messwertreihe."""
     if values.empty:
         return 0.0
     return float(values.quantile(0.95))
 
 
 def _render_kpis(log_df, best_df):
+    """Zeigt Erfolgs-, Block-, Batch- und Laufzeitkennzahlen."""
     gesamt_exec = len(log_df)
     erfolgreich = int((log_df["status"] == "ausgefuehrt").sum()) if gesamt_exec else 0
     fehl = int((log_df["status"] == "fehlgeschlagen").sum()) if gesamt_exec else 0
@@ -83,6 +85,7 @@ def _render_kpis(log_df, best_df):
 
 
 def _render_status_chart(log_df):
+    """Visualisiert die Verteilung der ausführungsbezogenen Statuswerte."""
     st.subheader("Tool-Status Verteilung")
     if log_df.empty:
         st.info("Keine ausführungsbezogenen Tool-Logs im gewählten Zeitraum.")
@@ -92,7 +95,8 @@ def _render_status_chart(log_df):
 
 
 def _render_tool_ranking(log_df):
-    st.subheader("Top Tools (ausgefuehrt)")
+    """Zeigt die am häufigsten erfolgreich ausgeführten Tools."""
+    st.subheader("Top Tools (ausgeführt)")
     if log_df.empty:
         return
     ranking = (
@@ -110,6 +114,7 @@ def _render_tool_ranking(log_df):
 
 
 def _render_timeline(log_df):
+    """Zeigt die Anzahl der Tool-Ausführungen pro Tag."""
     st.subheader("Aktivität pro Tag")
     if log_df.empty:
         return
@@ -124,6 +129,7 @@ def _render_timeline(log_df):
 
 
 def _render_dauer_pro_tool(log_df):
+    """Vergleicht die mittlere Laufzeit der protokollierten Tools."""
     st.subheader("Laufzeit pro Tool")
     if log_df.empty:
         return
@@ -141,6 +147,7 @@ def _render_dauer_pro_tool(log_df):
 
 
 def _render_detail_table(log_df):
+    """Zeigt die ausführungsbezogenen Tool-Protokolle als Tabelle."""
     st.subheader("Detailtabelle")
     if log_df.empty:
         return
@@ -161,6 +168,7 @@ def _render_detail_table(log_df):
 
 
 def show_metriken():
+    """Rendert Kennzahlen und Diagramme aus realen Log- und Bestelldaten."""
     st.title("Metriken")
     zeitraum_tage = st.selectbox("Zeitraum", [7, 14, 30, 90], index=2)
 

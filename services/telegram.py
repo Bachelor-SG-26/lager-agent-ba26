@@ -42,5 +42,6 @@ def send_telegram(text: str) -> bool:
             )
         return response.status_code == 200
     except requests.RequestException as e:
-        logger.error("Telegram-Verbindungsfehler: %s", e)
+        # Die Request-URL enthält den Bot-Token und darf deshalb nicht ins Log.
+        logger.error("Telegram-Verbindungsfehler (%s)", type(e).__name__)
         return False

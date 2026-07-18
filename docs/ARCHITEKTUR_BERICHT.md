@@ -74,29 +74,36 @@ Tabellen:
 - `agent_log` (`tool_name`, `tool_args`, `status`, `datum`, `duration_ms`)
 - `chat_sessions`
 - `chat_nachrichten`
+- `evaluation_teilnehmende`
+- `evaluation_durchlaeufe`
+- `evaluation_aufgaben`
+- `evaluation_ereignisse`
 
 `database/database.py`:
 - `get_connection()` für einfache Abfragen
-- `db_connection` Context-Manager für Commit/Rollback
-- `init_db()` inkl. kleiner Migration (`agent_log.duration_ms`)
+- `db_connection` Context-Manager für Commit/Rollback und aktive Fremdschlüsselprüfung
+- `init_db()` inkl. Migrationen für Agent-Log und Teilnehmerprofil
 
 ## 5. Agent und Tools
 
 `agent/agent.py`:
-- Modell: über `NVIDIA_MODEL` konfigurierbar, aktiver Standard `meta/llama-3.1-70b-instruct`
+- Modell: über `NVIDIA_MODEL` konfigurierbar, Fallback `meta/llama-3.1-70b-instruct`
 - Aktive Modelle werden über den NVIDIA API Key geladen und in den Einstellungen ausgewählt.
 - Der Agent wird verzögert aufgebaut; nach einem Modellwechsel wird sein Cache geleert.
-- Prompt-Regeln für Batch-Nutzung, Lieferantenvergleich, Budgetprüfung und Format
+- Temperatur 0 reduziert zufällige Abweichungen bei wiederholten Evaluationsaufgaben.
+- Prompt-Regeln für schrittweise Tool-Nutzung ohne Platzhalter-IDs, Batch-Nutzung, Lieferantenvergleich, Budgetprüfung und Format
 - HITL via `interrupt_before=["tools"]`
 
 Tool-Registry: `agent/tools/__init__.py` (17 Tools)
 - Lager: `check_lagerbestand`, `check_engpaesse`
+- `check_lagerbestand` kann Produkte über einen vollständigen oder teilweisen Namen suchen und liefert die Produkt-ID für Folgeschritte.
 - Budget: `check_budget`, `erstelle_budget`
 - Bestellung: `erstelle_bestellung`, `erstelle_bestellung_batch`, `check_bestellhistorie`
 - `erstelle_bestellung` und `erstelle_bestellung_batch` können optional eine `lieferant_id` verwenden; ohne Angabe wird der Standardlieferant genutzt.
 - Entnahme: `erfasse_entnahme`
 - Prognose: `prognostiziere_bedarf`, `prognostiziere_bedarf_batch`
 - Lieferanten: `check_lieferanten`, `vergleiche_lieferanten`, `vergleiche_lieferanten_batch`, `erstelle_lieferant`
+- Lieferantenvergleiche geben die IDs aller Alternativen und der Empfehlung aus, damit die Auswahl eindeutig bestellt werden kann.
 - Produkte/Lieferanten Update: `erstelle_produkt`, `aktualisiere_produkt`, `aktualisiere_lieferant`
 
 ## 6. Chat-Flow (views/chat/ Package)
@@ -107,7 +114,7 @@ Der Chat ist in ein Package mit fünf Submodulen aufgeteilt:
 - `state.py` - Session-State-Helfer, `cancel_pending_tools()`, `status_aus_tool_result()`, Logging
 - `ui.py` - Rendering: `render_message`, `render_chat_history`, `render_confirmation`, `render_empty_state`, Tool-Pills
 - `processing.py` - Streaming, Tool-Ausführung, Smart-Approve
-- `recovery.py` - Fehlerhaertung, Orphan-Tool-Call-Reparatur, API-Fehler-Behandlung
+- `recovery.py` - Fehlerhärtung, Orphan-Tool-Call-Reparatur, API-Fehler-Behandlung
 
 Die externe API bleibt stabil: `from views.chat import show_chat`.
 
@@ -128,8 +135,8 @@ Wichtige Teile:
 
 `st.chat_input` und der Stop-Button werden in `show_chat()` bewusst **vor**
 `execute_recovery()` und den Verarbeitungs-Branches gerendert. Dadurch bleiben
-Input-Feld und Stop-Button sichtbar, auch wenn anschliessende Operationen
-(z. B. NVIDIA-API-Aufrufe) laenger blockieren. Der Stop-Button liegt per CSS
+Input-Feld und Stop-Button sichtbar, auch wenn anschließende Operationen
+(z. B. NVIDIA-API-Aufrufe) länger blockieren. Der Stop-Button liegt per CSS
 an einer fixen Position (unten rechts).
 
 ### Stop-Verhalten
@@ -137,10 +144,10 @@ an einer fixen Position (unten rechts).
 Beim Stop:
 - `stop_requested` wird gesetzt
 - laufender Flow prüft `stop_requested` in Streaming-Schleifen
-- offene Bestatigungen werden mit `state.cancel_pending_tools(...)` sauber abgebrochen
+- offene Bestätigungen werden mit `state.cancel_pending_tools(...)` sauber abgebrochen
 - State wird konsistent zurückgesetzt
 
-### Recovery/Fehlerhaertung (views/chat/recovery.py)
+### Recovery/Fehlerhärtung (views/chat/recovery.py)
 
 Recovery-Funktionen:
 - `detect_pending_recovery()`
@@ -151,13 +158,15 @@ Spezialfall Orphan-Tool-Calls:
 - `repair_orphan_tool_calls()` ergänzt fehlende ToolMessages
 
 API-Fehler:
-- `ist_api_fehler(msg)` erkennt 429 (Rate-Limit) sowie 502/503/504 (Gateway-Fehler/Timeout)
+- `ist_api_fehler(msg)` erkennt 429 (Rate-Limit) sowie 500/502/503/504 (Server- und Gateway-Fehler/Timeout)
 - `handle_agent_error(e)` mapped Fehler auf nutzerfreundliche Meldungen
   ("Die KI-API ist gerade nicht erreichbar ...") und setzt den State sauber zurück
+- Eine leere Endantwort wird einmalig mit dem bestehenden Kontext fortgesetzt. Bleibt
+  auch diese Antwort leer, erscheint ein klarer Hinweis zum erneuten Versuch oder Modellwechsel.
 
 ### Seitenwechsel-Reload
 
-Beim Wechsel von einer anderen Seite zurück zu "Chat" wird ein Browser-Reload
+Beim Wechsel von einer anderen Seite zurück zum Bereich "Agent" wird ein Browser-Reload
 ausgelöst (`window.parent.location.reload()`), um hartnäckige Layout- und
 Socket-Zustände zuverlässig zurücksetzen. Eine Guard über `_letzte_seite`
 verhindert Reload-Schleifen.
@@ -176,7 +185,7 @@ Seiten:
 - `views/metriken.py`: KPI-Sicht (Erfolgsquoten, Budget-Blockrate, Batch-Quote, Durchschnitt und P95 Dauer)
 - `views/auswertung.py`: Verlauf/Ranking/Log-Detail für Agent-Nutzung
 
-## 8. Telegram und Nebenlaeufigkeit
+## 8. Telegram und Nebenläufigkeit
 
 `agent/tools/bestellungen.py`:
 - `_bestell_lock` gegen Bestellnummer-Race-Conditions

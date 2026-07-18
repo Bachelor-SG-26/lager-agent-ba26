@@ -13,7 +13,7 @@ ReAct-Agent. Neben reinem Rendering übernimmt es:
 - Stop-Funktion während laufender Agent-Operationen
 - Recovery nach Browser-Reload, Seitenwechsel oder API-Fehlern
 - Reparatur von INVALID_CHAT_HISTORY-Zuständen (Orphan Tool-Calls)
-- Einheitliches Mapping transienter API-Fehler (429/502/503/504)
+- Einheitliches Mapping transienter API-Fehler (429/500/502/503/504)
 
 Für Testbarkeit und Lesbarkeit ist der Chat in ein Package mit fünf Submodulen
 aufgeteilt. Die externe API bleibt stabil: `from views.chat import show_chat`.
@@ -116,6 +116,12 @@ auf offenen LangGraph-State. Fallunterscheidung:
   `invoke(None)` weiter oder liest das letzte Ergebnis aus
 - Kein verarbeitbarer State -> `state.reset_state()`
 
+Beendet ein Modell einen Schritt ohne Text und ohne Tool-Aufruf, fordert
+`processing.py` einmalig eine Fortsetzung anhand des vorhandenen Verlaufs an.
+Neue schreibende Tool-Aufrufe durchlaufen weiterhin die normale Bestätigung.
+Bleibt auch die Fortsetzung leer, wird ein verständlicher Hinweis zum erneuten
+Versuch oder Modellwechsel angezeigt.
+
 ## 7. Orphan-Tool-Call-Reparatur
 
 Wenn die Nachrichten-Historie einen `AIMessage` mit `tool_calls` enthält,
@@ -131,11 +137,11 @@ einem neutralen Abbruch-Text auf. Der Nutzer bekommt den Hinweis
 
 Zentraler Helper: `recovery.handle_agent_error(exception) -> bool`
 
-- `recovery.ist_api_fehler(msg)` erkennt `429`, `502`, `503`, `504`
+- `recovery.ist_api_fehler(msg)` erkennt `429`, `500`, `502`, `503`, `504`
   (plus Klartextvarianten "too many requests", "bad gateway",
   "service unavailable", "gateway timeout")
 - Gemappte Nutzer-Meldung: "Die KI-API ist gerade nicht erreichbar
-  (Rate-Limit oder Gateway-Fehler). Bitte in kurzer Zeit erneut versuchen."
+  (Rate-Limit oder Serverfehler). Bitte warte einen Moment und versuche es erneut."
 - Rückgabewert `True` signalisiert dem Aufrufer, dass der Fehler
   behandelt wurde; State wird sauber zurückgesetzt
 
@@ -168,12 +174,14 @@ Nicht im Chat-Modul:
 
 ## 11. Testabdeckung
 
-`tests/test_views_chat_resilience.py` deckt die reinen Helfer ab:
+`tests/test_views_chat_resilience.py` und `tests/test_views_chat_processing.py`
+decken die reinen Helfer ab:
 
 - `recovery.ist_invalid_chat_history`
 - `recovery.ist_api_fehler`
 - `state.status_aus_tool_result`
 - `recovery.repair_orphan_tool_calls` (mit gemocktem Agent)
+- Erkennung und einmalige Fortsetzung leerer Modellantworten
 
 UI-Flows (Stop mitten im Stream, Reload-Recovery) sind aktuell manuell
 getestet; ein E2E-Harness mit `streamlit.testing` ist möglich, aber nicht

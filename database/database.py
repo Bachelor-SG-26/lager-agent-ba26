@@ -9,8 +9,10 @@ logger = get_logger("database")
 
 
 def get_connection():
-    """Gibt eine Verbindung zur Datenbank zurück."""
-    return sqlite3.connect(DB_NAME)
+    """Gibt eine Verbindung mit aktiver Fremdschlüsselprüfung zurück."""
+    conn = sqlite3.connect(DB_NAME, timeout=30)
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 
 class db_connection:
@@ -21,7 +23,7 @@ class db_connection:
         self.conn = None
 
     def __enter__(self):
-        self.conn = sqlite3.connect(DB_NAME)
+        self.conn = get_connection()
         return self.conn, self.conn.cursor()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -48,9 +50,12 @@ def init_db():
         tables = [t[0] for t in cursor.fetchall() if t[0] != "sqlite_sequence"]
         if tables:
             logger.warning("Schema-Migration: Lösche alte Tabellen %s", tables)
+            conn.commit()
+            cursor.execute("PRAGMA foreign_keys = OFF")
         for table in tables:
             cursor.execute(f"DROP TABLE IF EXISTS {table}")
         conn.commit()
+        cursor.execute("PRAGMA foreign_keys = ON")
 
     create_tables(cursor)
     _migrate_agent_log(cursor)

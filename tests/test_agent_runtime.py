@@ -29,6 +29,7 @@ def test_build_agent_verwendet_gespeichertes_modell(monkeypatch):
     assert result == "fake-agent"
     assert captured["llm"]["model"] == "anbieter/modell-a"
     assert captured["llm"]["api_key"] == "nvapi-test"
+    assert captured["llm"]["temperature"] == 0
     assert captured["agent"]["model"] == "fake-llm"
 
 

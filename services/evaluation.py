@@ -1456,6 +1456,7 @@ def exportiere_ereignisse_csv():
 
 
 _BERICHT_LABELS = {
+    "id": "ID",
     "altersgruppe": "Altersgruppe",
     "berufsbereich": "Beruflicher Bereich",
     "lager_erfahrung": "Erfahrung mit Lager oder Beschaffung",
@@ -1464,6 +1465,7 @@ _BERICHT_LABELS = {
     "vorherige_kenntnis": "Anwendung vorher bekannt",
     "produkt": "Produkt",
     "produkt_id": "Produkt-ID",
+    "bestellung_id": "Bestellungs-ID",
     "bestand": "Bestand",
     "ausgangsbestand": "Ausgangsbestand",
     "mindestbestand": "Mindestbestand",
@@ -1475,8 +1477,11 @@ _BERICHT_LABELS = {
     "grund": "Grund",
     "lieferant": "Lieferant",
     "lieferant_id": "Lieferanten-ID",
+    "standard_lieferant_id": "Standardlieferanten-ID",
     "einzelpreis": "Einzelpreis",
     "preis": "Preis",
+    "preis_pro_einheit": "Preis pro Einheit",
+    "tage_voraus": "Prognosezeitraum in Tagen",
     "budget_verbraucht": "Budgetverbrauch vor der Aufgabe",
     "felder_korrekt": "Eingegebene Werte korrekt",
     "bestellmenge_korrekt": "Empfohlene Bestellmenge korrekt",
@@ -1498,22 +1503,30 @@ _BERICHT_LABELS = {
     "produktdaten": "Tatsächliche Produktdaten",
     "lieferantenzuordnung_vorhanden": "Lieferantenzuordnung vorhanden",
     "protokollierte_aktionen": "Protokollierte fachliche Aktionen",
-    "versuch": "Versuch",
-    "wiederholungsgrund": "Wiederholungsgrund",
-    "vorheriger_versuch": "Vorheriger Versuch",
-    "neuer_versuch": "Neuer Versuch",
-    "vorheriges_ergebnis": "Vorheriges Ergebnis",
-    "gestartet_am": "Gestartet am",
-    "abgeschlossen_am": "Abgeschlossen am",
-    "dauer_ms": "Dauer in Millisekunden",
-    "erfolgreich": "Fachlich erfüllt",
-    "antwort": "Erfasste Ausführung",
-    "validierung": "Prüfergebnis",
-    "schwierigkeit": "Schwierigkeit",
-    "kommentar": "Rückmeldung",
     "aktion": "Aktion",
     "status": "Status",
     "argumente": "Argumente",
+}
+
+_BERICHT_AUSGEBLENDETE_FELDER = frozenset(
+    {"letzte_bestellung_id", "budget_id", "letzter_verbrauch_id"}
+)
+_BERICHT_LEBENSZYKLUS_AKTIONEN = frozenset(
+    {
+        "aufgabe_gestartet",
+        "aufgabe_neu_gestartet",
+        "aufgabe_wiederholt",
+        "aufgabe_abgeschlossen",
+        "aufgabe_abgebrochen",
+    }
+)
+_BERICHT_STATUS_LABELS = {
+    "akzeptiert": "Bestätigt",
+    "auto-akzeptiert": "Automatisch bestätigt",
+    "ausgefuehrt": "Ausgeführt",
+    "fehlgeschlagen": "Fehlgeschlagen",
+    "abgelehnt": "Abgelehnt",
+    "abgelehnt_budget": "Wegen Budget abgelehnt",
 }
 
 
@@ -1522,25 +1535,69 @@ def _bericht_wert(wert):
     if isinstance(wert, dict):
         zeilen = []
         for schluessel, teilwert in wert.items():
+            if schluessel in _BERICHT_AUSGEBLENDETE_FELDER:
+                continue
+            if schluessel == "formular" and not teilwert:
+                continue
             label = _BERICHT_LABELS.get(schluessel, schluessel.replace("_", " ").title())
             zeilen.append(
-                f"<tr><th>{escape(label)}</th><td>{_bericht_wert(teilwert)}</td></tr>"
+                "<div class='data-row'>"
+                f"<span class='data-label'>{escape(label)}</span>"
+                f"<div class='data-value'>{_bericht_wert(teilwert)}</div>"
+                "</div>"
             )
-        return f"<table class='detail-table'>{''.join(zeilen)}</table>"
+        if not zeilen:
+            return "<span class='muted'>Keine Angaben</span>"
+        return f"<div class='data-list'>{''.join(zeilen)}</div>"
     if isinstance(wert, list):
         if not wert:
             return "<span class='muted'>Keine Einträge</span>"
         eintraege = "".join(
-            f"<li>{_bericht_wert(teilwert)}</li>" for teilwert in wert
+            f"<div class='list-item'>{_bericht_wert(teilwert)}</div>"
+            for teilwert in wert
         )
-        return f"<ol class='detail-list'>{eintraege}</ol>"
+        return f"<div class='item-list'>{eintraege}</div>"
     if isinstance(wert, bool):
         css = "ok" if wert else "nicht-ok"
         text = "Erfüllt" if wert else "Nicht erfüllt"
         return f"<span class='{css}'>{text}</span>"
     if wert is None or wert == "":
         return "<span class='muted'>–</span>"
+    if isinstance(wert, float):
+        return escape(f"{wert:.2f}".replace(".", ","))
     return escape(str(wert))
+
+
+def _fachliche_ereignisse(ereignisse):
+    """Reduziert den neuesten Versuch auf den letzten Status je Tool-Aufruf."""
+    nach_id = {}
+    reihenfolge = []
+    for ereignis in ereignisse:
+        if ereignis["aktion"] in _BERICHT_LEBENSZYKLUS_AKTIONEN:
+            continue
+        schluessel = ereignis["ereignis_id"] or str(ereignis["id"])
+        if schluessel not in nach_id:
+            reihenfolge.append(schluessel)
+        nach_id[schluessel] = ereignis
+    return [nach_id[schluessel] for schluessel in reihenfolge]
+
+
+def _bericht_dauer(dauer_ms):
+    """Formatiert Millisekunden als kurze, gut lesbare Sekundenangabe."""
+    if dauer_ms is None:
+        return "–"
+    return f"{dauer_ms / 1000:.1f} s"
+
+
+def _bericht_ausfuehrung(antwort):
+    """Reduziert gespeicherte Ergebnisdaten auf die fachlich relevante Ebene."""
+    if not isinstance(antwort, dict):
+        return antwort
+    if antwort.get("formular"):
+        return antwort["formular"]
+    if antwort.get("beobachteter_zustand"):
+        return antwort["beobachteter_zustand"]
+    return antwort or None
 
 
 def _markiere_ereignisversuche(ereignisse):
@@ -1634,30 +1691,52 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
         ),
     }
 
-    durchlauf_zeilen = []
+    durchlauf_karten = []
     for lauf in durchlaeufe:
+        lauf_aufgaben = [
+            aufgabe for aufgabe in aufgaben if aufgabe["position"] == lauf["position"]
+        ]
+        lauf_beendet = sum(
+            aufgabe["status"] in ("abgeschlossen", "abgebrochen")
+            for aufgabe in lauf_aufgaben
+        )
+        lauf_erfolgreich = sum(
+            aufgabe["erfolgreich"] == 1 for aufgabe in lauf_aufgaben
+        )
+        dauer_werte = [
+            aufgabe["dauer_ms"]
+            for aufgabe in lauf_aufgaben
+            if aufgabe["dauer_ms"] is not None
+        ]
+        durchschnitt_ms = (
+            sum(dauer_werte) / len(dauer_werte) if dauer_werte else None
+        )
         modell = lauf["modell_id"] if lauf["modus"] == "Agent" else None
-        durchlauf_zeilen.append(
-            "<tr>"
-            f"<td>{lauf['position']}</td>"
-            f"<td>{escape(lauf['modus'])}</td>"
-            f"<td>{escape(lauf['szenario'])}</td>"
-            f"<td>{escape(lauf['status'])}</td>"
-            f"<td>{_bericht_wert(modell)}</td>"
-            f"<td>{_bericht_wert(lauf['sus_score'])}</td>"
-            f"<td>{_bericht_wert(lauf['feedback'])}</td>"
-            "</tr>"
+        durchlauf_karten.append(
+            f"""
+            <article class="run-card">
+              <div class="run-head">
+                <div><span class="eyebrow">Durchlauf {lauf['position']}</span><h3>{escape(lauf['modus'])} · Szenario {escape(lauf['szenario'])}</h3></div>
+                <span class="status neutral">{escape(lauf['status'].capitalize())}</span>
+              </div>
+              <div class="run-stats">
+                <div><span>Erfüllt</span><strong>{lauf_erfolgreich}/{lauf_beendet}</strong></div>
+                <div><span>Ø Dauer</span><strong>{_bericht_dauer(durchschnitt_ms)}</strong></div>
+                <div><span>SUS</span><strong>{_bericht_wert(lauf['sus_score'])}</strong></div>
+              </div>
+              <div class="run-context">
+                <p><strong>Modell:</strong> {_bericht_wert(modell)}</p>
+                <p><strong>Feedback:</strong> {_bericht_wert(lauf['feedback'])}</p>
+              </div>
+            </article>
+            """
         )
 
     aufgaben_zeilen = []
     detail_abschnitte = []
     for aufgabe in aufgaben:
         titel = AUFGABEN[aufgabe["aufgabe_code"]]["titel"]
-        dauer = (
-            f"{aufgabe['dauer_ms'] / 1000:.1f} s"
-            if aufgabe["dauer_ms"] is not None
-            else "–"
-        )
+        dauer = _bericht_dauer(aufgabe["dauer_ms"])
         bewertung = (
             "Erfüllt"
             if aufgabe["erfolgreich"] == 1
@@ -1665,7 +1744,13 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
             if aufgabe["erfolgreich"] == 0
             else "Offen"
         )
-        status_css = "ok" if aufgabe["erfolgreich"] == 1 else "nicht-ok"
+        status_css = (
+            "ok"
+            if aufgabe["erfolgreich"] == 1
+            else "nicht-ok"
+            if aufgabe["erfolgreich"] == 0
+            else "neutral"
+        )
         task_events = _markiere_ereignisversuche(
             [
                 ereignis
@@ -1681,9 +1766,7 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
             "<tr>"
             f"<td>{escape(aufgabe['aufgabe_code'])}</td>"
             f"<td>{escape(titel)}</td>"
-            f"<td>{escape(aufgabe['modus'])}</td>"
-            f"<td>{escape(aufgabe['szenario'])}</td>"
-            f"<td>{aktueller_versuch}</td>"
+            f"<td>{escape(aufgabe['modus'])} · {escape(aufgabe['szenario'])}</td>"
             f"<td>{dauer}</td>"
             f"<td><span class='{status_css}'>{bewertung}</span></td>"
             f"<td>{_bericht_wert(aufgabe['schwierigkeit'])}</td>"
@@ -1695,54 +1778,43 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
             for ereignis in task_events
             if ereignis["versuch"] == aktueller_versuch
         ]
-        erfasste_ausfuehrung = aufgabe["antwort"]
-        if not erfasste_ausfuehrung:
-            fachliche_ereignisse = [
-                {
-                    "aktion": ereignis["aktion"],
-                    "status": ereignis["status"],
-                    "argumente": ereignis["argumente"],
-                }
-                for ereignis in aktuelle_ereignisse
-                if ereignis["aktion"]
-                not in {
-                    "aufgabe_gestartet",
-                    "aufgabe_neu_gestartet",
-                    "aufgabe_wiederholt",
-                    "aufgabe_abgeschlossen",
-                    "aufgabe_abgebrochen",
-                }
-            ]
-            erfasste_ausfuehrung = {
-                "protokollierte_aktionen": fachliche_ereignisse
-            }
-        ereignis_zeilen = []
-        for ereignis in task_events:
-            ereignis_zeilen.append(
+        erfasste_ausfuehrung = _bericht_ausfuehrung(aufgabe["antwort"])
+        aktions_zeilen = []
+        for ereignis in _fachliche_ereignisse(aktuelle_ereignisse):
+            status = _BERICHT_STATUS_LABELS.get(
+                ereignis["status"],
+                ereignis["status"].replace("_", " ").capitalize(),
+            )
+            aktions_zeilen.append(
                 "<tr>"
-                f"<td>{ereignis['versuch']}</td>"
-                f"<td>{escape(ereignis['erstellt_am'])}</td>"
                 f"<td>{escape(ereignis['aktion'])}</td>"
-                f"<td>{escape(ereignis['status'])}</td>"
-                f"<td>{_bericht_wert(ereignis['dauer_ms'])}</td>"
+                f"<td>{escape(status)}</td>"
                 f"<td>{_bericht_wert(ereignis['argumente'])}</td>"
                 "</tr>"
             )
+        aktions_tabelle = (
+            "<table class='action-table'><thead><tr><th>Aktion</th><th>Status</th><th>Eingaben</th></tr></thead>"
+            f"<tbody>{''.join(aktions_zeilen)}</tbody></table>"
+            if aktions_zeilen
+            else "<p class='muted compact'>Keine fachliche Aktion protokolliert.</p>"
+        )
         info = hole_aufgabeninfo(aufgabe["aufgabe_code"], aufgabe["szenario"])
         detail_abschnitte.append(
             f"""
             <section class="task-detail">
-              <h3>{escape(aufgabe['aufgabe_code'])} · {escape(titel)} · Versuch {aktueller_versuch} (maßgeblich)</h3>
-              <p>{escape(info['anweisung'].replace('**', ''))}</p>
-              <div class="detail-grid">
-                <div><h4>Vorausgesetzter Zustand</h4>{_bericht_wert(aufgabe['erwartung'])}</div>
-                <div><h4>Erfasste Ausführung</h4>{_bericht_wert(erfasste_ausfuehrung)}</div>
-                <div><h4>Prüfergebnis</h4>{_bericht_wert(aufgabe['validierung'])}</div>
-                <div><h4>Rückmeldung</h4><p>Schwierigkeit: {_bericht_wert(aufgabe['schwierigkeit'])}</p><p>{_bericht_wert(aufgabe['kommentar'])}</p></div>
+              <div class="task-head">
+                <div><span class="eyebrow">{escape(aufgabe['modus'])} · Szenario {escape(aufgabe['szenario'])}</span><h3>{escape(aufgabe['aufgabe_code'])} · {escape(titel)}</h3></div>
+                <span class="status {status_css}">{escape(bewertung)}</span>
               </div>
-              <h4>Ereignisprotokoll</h4>
-              <table><thead><tr><th>Versuch</th><th>Zeitpunkt</th><th>Aktion</th><th>Status</th><th>Dauer ms</th><th>Argumente</th></tr></thead>
-              <tbody>{''.join(ereignis_zeilen)}</tbody></table>
+              <p class="task-prompt">{escape(info['anweisung'].replace('**', ''))}</p>
+              <p class="task-meta">Dauer: <strong>{dauer}</strong> · Schwierigkeit: <strong>{_bericht_wert(aufgabe['schwierigkeit'])}</strong></p>
+              <div class="detail-grid">
+                <div><h4>Soll</h4>{_bericht_wert(aufgabe['erwartung'])}</div>
+                <div><h4>Tatsächlich erfasst</h4>{_bericht_wert(erfasste_ausfuehrung)}</div>
+                <div><h4>Prüfergebnis</h4>{_bericht_wert(aufgabe['validierung'])}</div>
+              </div>
+              <div class="feedback"><strong>Rückmeldung:</strong> {_bericht_wert(aufgabe['kommentar'])}</div>
+              <div class="actions"><h4>Fachliche Aktionen</h4>{aktions_tabelle}</div>
             </section>
             """
         )
@@ -1755,24 +1827,40 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Evaluationsbericht {escape(teilnehmer_code)}</title>
   <style>
-    :root {{ --ink:#172033; --muted:#64748b; --line:#d9e0ea; --surface:#f6f8fb; --accent:#d9343e; --ok:#16794a; --bad:#b4232d; }}
+    :root {{ --ink:#172033; --muted:#667085; --line:#d9e0ea; --surface:#f6f8fb; --accent:#d9343e; --ok:#16794a; --bad:#b4232d; }}
     * {{ box-sizing:border-box; }}
-    body {{ margin:0; color:var(--ink); font:14px/1.5 Arial, sans-serif; background:#eef2f6; }}
-    main {{ width:min(1120px, calc(100% - 32px)); margin:28px auto; background:white; padding:36px; box-shadow:0 8px 32px rgba(23,32,51,.08); }}
-    h1,h2,h3,h4 {{ margin:0 0 10px; }} h1 {{ font-size:28px; }} h2 {{ margin-top:30px; padding-bottom:8px; border-bottom:2px solid var(--ink); }} h3 {{ font-size:18px; }} h4 {{ font-size:14px; }}
+    body {{ margin:0; color:var(--ink); font:14px/1.55 Arial, sans-serif; background:#eef2f6; }}
+    main {{ width:min(1160px, calc(100% - 32px)); margin:28px auto; overflow:hidden; background:white; padding:36px; box-shadow:0 8px 32px rgba(23,32,51,.08); }}
+    h1,h2,h3,h4 {{ margin:0; letter-spacing:0; }} h1 {{ font-size:28px; }} h2 {{ margin-top:34px; padding-bottom:8px; border-bottom:2px solid var(--ink); font-size:20px; }} h3 {{ margin-top:3px; font-size:18px; }} h4 {{ margin-bottom:10px; font-size:14px; }}
+    p {{ margin:8px 0; }}
     .meta {{ color:var(--muted); margin-bottom:24px; }}
     .summary {{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:20px 0; }}
-    .metric {{ border:1px solid var(--line); padding:14px; background:var(--surface); }} .metric strong {{ display:block; font-size:22px; }}
-    table {{ width:100%; border-collapse:collapse; margin:10px 0 18px; }} th,td {{ border:1px solid var(--line); padding:8px 9px; text-align:left; vertical-align:top; }} thead th {{ background:var(--surface); }}
-    .detail-table {{ margin:0; }} .detail-table th {{ width:48%; background:var(--surface); }}
-    .detail-list {{ margin:0; padding-left:1.25rem; }} .detail-list li+li {{ margin-top:6px; }}
-    .task-detail {{ break-inside:avoid; margin:22px 0; padding:18px; border:1px solid var(--line); }}
-    .detail-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:14px 0; }} .detail-grid>div {{ padding:12px; background:var(--surface); }}
-    .ok {{ color:var(--ok); font-weight:700; }} .nicht-ok {{ color:var(--bad); font-weight:700; }} .muted {{ color:var(--muted); }}
+    .metric {{ border:1px solid var(--line); padding:14px; background:var(--surface); }} .metric strong {{ display:block; margin-top:2px; font-size:22px; }}
+    .run-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:14px; }}
+    .run-card {{ min-width:0; padding:16px; border:1px solid var(--line); border-radius:6px; }}
+    .run-head,.task-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }}
+    .eyebrow {{ color:var(--muted); font-size:12px; font-weight:700; text-transform:uppercase; }}
+    .run-stats {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:14px 0; }}
+    .run-stats>div {{ padding:10px; background:var(--surface); }} .run-stats span {{ display:block; color:var(--muted); font-size:12px; }} .run-stats strong {{ font-size:17px; }}
+    .run-context {{ overflow-wrap:anywhere; }} .run-context p {{ margin:5px 0; }}
+    table {{ width:100%; table-layout:fixed; border-collapse:collapse; margin:12px 0 18px; }} th,td {{ border:1px solid var(--line); padding:8px 9px; overflow-wrap:anywhere; text-align:left; vertical-align:top; }} thead th {{ background:var(--surface); }}
+    .overview-table th:nth-child(1) {{ width:7%; }} .overview-table th:nth-child(2) {{ width:31%; }} .overview-table th:nth-child(3) {{ width:15%; }} .overview-table th:nth-child(4) {{ width:12%; }} .overview-table th:nth-child(5) {{ width:18%; }} .overview-table th:nth-child(6) {{ width:17%; }}
+    .data-list {{ border-top:1px solid var(--line); }}
+    .data-row {{ display:grid; grid-template-columns:minmax(120px,42%) minmax(0,1fr); gap:10px; padding:7px 0; border-bottom:1px solid var(--line); }}
+    .data-label {{ font-weight:700; }} .data-value {{ min-width:0; overflow-wrap:anywhere; }}
+    .item-list {{ display:grid; gap:8px; }} .list-item {{ padding:8px; border:1px solid var(--line); background:white; }}
+    .task-detail {{ margin:26px 0 34px; padding-top:18px; border-top:3px solid var(--ink); }}
+    .task-prompt {{ max-width:900px; margin:12px 0; }} .task-meta {{ color:var(--muted); }}
+    .detail-grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:16px 0; }} .detail-grid>div {{ min-width:0; padding:14px; border:1px solid var(--line); background:var(--surface); }}
+    .feedback {{ margin:12px 0; padding:11px 13px; border-left:3px solid var(--line); background:var(--surface); }}
+    .actions {{ margin-top:16px; }} .action-table th:nth-child(1) {{ width:25%; }} .action-table th:nth-child(2) {{ width:22%; }} .action-table th:nth-child(3) {{ width:53%; }}
+    .status {{ flex:0 0 auto; padding:4px 8px; border:1px solid currentColor; border-radius:4px; font-weight:700; }}
+    .ok {{ color:var(--ok); font-weight:700; }} .nicht-ok {{ color:var(--bad); font-weight:700; }} .neutral {{ color:var(--muted); }} .muted {{ color:var(--muted); }} .compact {{ margin:0; }}
     .note {{ border-left:4px solid var(--accent); padding:10px 14px; background:#fff5f5; }}
     footer {{ margin-top:30px; color:var(--muted); font-size:12px; }}
-    @media(max-width:760px) {{ main {{ width:100%; margin:0; padding:20px; }} .summary,.detail-grid {{ grid-template-columns:1fr; }} table {{ font-size:12px; }} }}
-    @media print {{ body {{ background:white; }} main {{ width:100%; margin:0; box-shadow:none; padding:0; }} }}
+    @media(max-width:900px) {{ .detail-grid {{ grid-template-columns:1fr; }} }}
+    @media(max-width:760px) {{ main {{ width:100%; margin:0; padding:20px; }} .summary,.run-grid {{ grid-template-columns:1fr; }} .run-head,.task-head {{ align-items:flex-start; }} table {{ font-size:12px; }} .data-row {{ grid-template-columns:1fr; gap:3px; }} }}
+    @media print {{ body {{ background:white; }} main {{ width:100%; margin:0; box-shadow:none; padding:0; }} .task-detail {{ break-before:page; }} .run-card,.detail-grid>div {{ break-inside:avoid; }} }}
   </style>
 </head>
 <body><main>
@@ -1783,13 +1871,13 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
     <div class="metric"><span>Fachlich erfüllt</span><strong>{erfolgreich}/{beendet}</strong></div>
     <div class="metric"><span>Bevorzugter Modus</span><strong>{_bericht_wert(teilnehmer['bevorzugter_modus'])}</strong></div>
   </div>
-  <p class="note">Die fachliche Bewertung basiert bei T1 und T2 auf den eingegebenen Ergebnissen. Bei T3 bis T5 wird der tatsächlich erzeugte Datenbankzustand geprüft. Bei Wiederholungen ist ausschließlich der neueste Versuch für Dauer, Ergebnis und Rückmeldung maßgeblich; frühere Versuche und der Wiederholungsgrund bleiben im Ereignisprotokoll erhalten.</p>
+  <p class="note">T1 und T2 werden anhand der erfassten Antworten bewertet. Bei T3 bis T5 zählt der tatsächlich erzeugte Datenbankzustand.</p>
   <h2>Teilnehmerprofil</h2>
   {_bericht_wert(profil)}
-  <h2>Durchläufe</h2>
-  <table><thead><tr><th>Nr.</th><th>Modus</th><th>Szenario</th><th>Status</th><th>Modell</th><th>SUS</th><th>Feedback</th></tr></thead><tbody>{''.join(durchlauf_zeilen)}</tbody></table>
+  <h2>Modusvergleich</h2>
+  <div class="run-grid">{''.join(durchlauf_karten)}</div>
   <h2>Aufgabenübersicht</h2>
-  <table><thead><tr><th>Code</th><th>Aufgabe</th><th>Modus</th><th>Szenario</th><th>Versuch</th><th>Dauer</th><th>Ergebnis</th><th>Schwierigkeit</th></tr></thead><tbody>{''.join(aufgaben_zeilen)}</tbody></table>
+  <table class="overview-table"><thead><tr><th>Code</th><th>Aufgabe</th><th>Modus</th><th>Dauer</th><th>Ergebnis</th><th>Schwierigkeit</th></tr></thead><tbody>{''.join(aufgaben_zeilen)}</tbody></table>
   <h2>Aufgabendetails</h2>
   {''.join(detail_abschnitte)}
   <h2>Abschluss</h2>

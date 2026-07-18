@@ -32,7 +32,7 @@ LIEFERANT_GEWICHT_BEWERTUNG = 0.3
 ANALYTICS_ZEITRAUM_TAGE = 90
 ANALYTICS_TOP_PRODUKTE_LIMIT = 10
 
-# Tool-Limits (schuetzt den LLM-Kontext vor zu großen Antworten)
+# Tool-Limits (schützt den LLM-Kontext vor zu großen Antworten)
 LAGERBESTAND_DEFAULT_LIMIT = 20
 ENGPASS_DEFAULT_LIMIT = 20
 BESTELLHISTORIE_DEFAULT_LIMIT = 60

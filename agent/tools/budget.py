@@ -60,6 +60,8 @@ def erstelle_budget(quartal: int, jahr: int, gesamtbudget: float) -> str:
     """
     if quartal not in (1, 2, 3, 4):
         return "Fehler: Quartal muss zwischen 1 und 4 liegen."
+    if jahr < 2000 or jahr > 2100:
+        return "Fehler: Jahr muss zwischen 2000 und 2100 liegen."
     if gesamtbudget <= 0:
         return "Fehler: Gesamtbudget muss größer als 0 sein."
 

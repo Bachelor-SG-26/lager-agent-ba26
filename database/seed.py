@@ -369,7 +369,7 @@ def _seed_bestellungen(cursor, produkt_ids, lief_map):
 
 
 def seed_data(cursor):
-    """Fuellt die Datenbank mit Beispieldaten."""
+    """Füllt die Datenbank mit reproduzierbaren Beispieldaten."""
     cursor.execute("SELECT COUNT(*) FROM lieferanten")
     if cursor.fetchone()[0] > 0:
         return

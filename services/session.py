@@ -16,7 +16,7 @@ def erstelle_session(thread_id):
 
 
 def aktualisiere_session_titel(thread_id, erste_nachricht):
-    """Setzt den Titel einer Session auf die erste User-Nachricht (gekuerzt)."""
+    """Setzt den Titel einer Session auf die erste User-Nachricht (gekürzt)."""
     titel = erste_nachricht[:50] + ("..." if len(erste_nachricht) > 50 else "")
     conn = get_connection()
     cursor = conn.cursor()

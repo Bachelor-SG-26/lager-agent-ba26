@@ -31,6 +31,37 @@ class TestCheckLagerbestand:
         assert "Euro/Stück" in result
         assert "Lieferant:" in result
 
+    def test_sucht_produkt_nach_exaktem_namen(self):
+        """Ein genauer Produktname sollte direkt den passenden Datensatz liefern."""
+        result = check_lagerbestand.invoke({"suchbegriff": "Sechskantmutter M10"})
+
+        assert "Produktsuche für 'Sechskantmutter M10' (1 von 1 Treffern)" in result
+        assert "Sechskantmutter M10" in result
+        assert "Sechskantmutter M8" not in result
+        assert "[ID:" in result
+
+    def test_sucht_produkte_teilweise_und_ohne_beachtung_der_grossschreibung(self):
+        """Teilnamen sollten unabhängig von Groß- und Kleinschreibung funktionieren."""
+        result = check_lagerbestand.invoke(
+            {"suchbegriff": "sechskantmutter m1", "limit": 0}
+        )
+
+        assert "Sechskantmutter M10" in result
+        assert "Sechskantmutter M12" in result
+        assert "Sechskantmutter M8" not in result
+
+    def test_meldet_wenn_keine_produkte_gefunden_werden(self):
+        """Eine erfolglose Suche sollte eine klare Rückmeldung liefern."""
+        result = check_lagerbestand.invoke({"suchbegriff": "Nicht vorhanden"})
+
+        assert result == "Keine Produkte für 'Nicht vorhanden' gefunden."
+
+    def test_lehnt_negatives_limit_ab(self):
+        """Negative Ergebnisgrenzen sind ungültig."""
+        result = check_lagerbestand.invoke({"limit": -1})
+
+        assert result == "Fehler: Limit darf nicht negativ sein."
+
 
 class TestCheckEngpaesse:
     """Tests für die Engpass-Erkennung."""

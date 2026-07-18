@@ -18,7 +18,11 @@ _TOOL_BESCHREIBUNGEN = {
         f"Entnimmt {a.get('menge', '?')} Stück von Produkt #{a.get('produkt_id', '?')} "
         f"(Grund: {a.get('grund', 'k.A.')})"
     ),
-    "check_lagerbestand": lambda a: "Ruft den aktuellen Lagerbestand aller Produkte ab",
+    "check_lagerbestand": lambda a: (
+        f"Sucht im Lagerbestand nach '{a.get('suchbegriff', '')}'"
+        if a.get("suchbegriff")
+        else "Ruft den aktuellen Lagerbestand aller Produkte ab"
+    ),
     "check_engpaesse": lambda a: "Prüft welche Produkte unter dem Mindestbestand liegen",
     "check_budget": lambda a: "Ruft die aktuelle Budget-Übersicht ab",
     "check_bestellhistorie": lambda a: "Ruft die bisherigen Bestellungen ab",
@@ -106,7 +110,7 @@ def render_empty_state():
 def render_chat_history(container):
     """Zeigt den gesamten Chat-Verlauf im Container an."""
     with container:
-        # Spacer drueckt kurze Verlaeufe nach unten.
+        # Spacer drückt kurze Verläufe nach unten.
         st.markdown("<div class='chat-start-spacer'></div>", unsafe_allow_html=True)
         if not st.session_state.messages:
             render_empty_state()

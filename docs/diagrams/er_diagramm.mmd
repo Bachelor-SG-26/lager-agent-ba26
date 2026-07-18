@@ -10,6 +10,7 @@ erDiagram
 
     agent_log {
         INTEGER id PK
+        TEXT tool_call_id
         TEXT tool_name
         TEXT tool_args
         TEXT status
@@ -76,6 +77,64 @@ erDiagram
         TEXT erstellt_am
     }
 
+    evaluation_teilnehmende {
+        TEXT teilnehmer_code PK
+        TEXT einwilligung_am
+        TEXT altersgruppe
+        TEXT berufsbereich
+        TEXT lager_erfahrung
+        INTEGER digitale_kenntnisse
+        TEXT ki_erfahrung
+        INTEGER vorherige_kenntnis
+        TEXT bevorzugter_modus
+        TEXT abschluss_kommentar
+        TEXT abgeschlossen_am
+    }
+
+    evaluation_durchlaeufe {
+        INTEGER id PK
+        TEXT teilnehmer_code FK
+        INTEGER position
+        TEXT modus
+        TEXT szenario
+        TEXT status
+        TEXT gestartet_am
+        TEXT abgeschlossen_am
+        TEXT modell_id
+        TEXT sus_antworten
+        REAL sus_score
+        TEXT feedback
+    }
+
+    evaluation_aufgaben {
+        INTEGER id PK
+        INTEGER durchlauf_id FK
+        TEXT aufgabe_code
+        TEXT status
+        TEXT gestartet_am
+        TEXT abgeschlossen_am
+        INTEGER dauer_ms
+        TEXT erwartung_json
+        TEXT antwort_json
+        INTEGER erfolgreich
+        TEXT validierung_json
+        INTEGER schwierigkeit
+        TEXT kommentar
+        TEXT chat_thread_id
+    }
+
+    evaluation_ereignisse {
+        INTEGER id PK
+        INTEGER aufgabe_id FK
+        TEXT quelle
+        TEXT ereignis_id
+        TEXT aktion
+        TEXT argumente_json
+        TEXT status
+        INTEGER dauer_ms
+        TEXT erstellt_am
+    }
+
     lieferanten ||--o{ produkte : "Standard-Lieferant"
     lieferanten ||--o{ produkt_lieferanten : "liefert"
     produkte ||--o{ produkt_lieferanten : "wird beliefert"
@@ -83,5 +142,8 @@ erDiagram
     lieferanten ||--o{ bestellungen : "liefert"
     produkte ||--o{ verbrauch : "Entnahme"
     chat_sessions ||--o{ chat_nachrichten : "enthält"
+    evaluation_teilnehmende ||--|{ evaluation_durchlaeufe : "absolviert"
+    evaluation_durchlaeufe ||--|{ evaluation_aufgaben : "enthält"
+    evaluation_aufgaben ||--o{ evaluation_ereignisse : "protokolliert"
 
     %% budget und agent_log sind eigenständige Tabellen ohne FK-Beziehungen

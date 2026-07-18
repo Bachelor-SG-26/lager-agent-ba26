@@ -26,6 +26,28 @@ class TestAktualisiereProdukt:
         assert "Mindestbestand" in result
         assert "Preis" in result
 
+    def test_preis_bleibt_mit_standardlieferant_konsistent(self, db_cursor):
+        """Der Produktpreis muss auch für Bestellungen beim Standardlieferanten gelten."""
+        cursor, _ = db_cursor
+        aktualisiere_produkt.invoke({
+            "produkt_id": 1,
+            "preis_pro_einheit": 0.42,
+        })
+
+        cursor.execute(
+            """
+            SELECT p.preis_pro_einheit, pl.preis
+            FROM produkte p
+            JOIN produkt_lieferanten pl
+              ON pl.produkt_id = p.id
+             AND pl.lieferant_id = p.standard_lieferant_id
+            WHERE p.id = 1
+            """
+        )
+        produktpreis, bestellpreis = cursor.fetchone()
+        assert produktpreis == pytest.approx(0.42)
+        assert bestellpreis == pytest.approx(0.42)
+
     def test_ungueltige_produkt_id(self):
         """Nicht existierende Produkt-ID sollte Fehler liefern."""
         result = aktualisiere_produkt.invoke({"produkt_id": 9999, "name": "Test"})
