@@ -10,7 +10,8 @@ import uuid
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from html import escape
-from io import StringIO
+from io import BytesIO, StringIO
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from agent.tools.lieferanten import _berechne_beste_empfehlung
 from config import CHECKPOINT_DB, PROGNOSE_HISTORIE_TAGE
@@ -1389,12 +1390,8 @@ def hole_teilnehmerabschluss(teilnehmer_code):
         )
 
 
-def _csv_aus_abfrage(sql):
-    """Erzeugt eine Excel-kompatible UTF-8-CSV aus einer Abfrage."""
-    with db_connection() as (conn, cursor):
-        cursor.execute(sql)
-        spalten = [spalte[0] for spalte in cursor.description]
-        zeilen = cursor.fetchall()
+def _csv_aus_zeilen(spalten, zeilen):
+    """Serialisiert Spalten und Zeilen als Excel-kompatible UTF-8-CSV."""
     ausgabe = StringIO()
     writer = csv.writer(ausgabe, delimiter=";", lineterminator="\n")
     writer.writerow(spalten)
@@ -1402,10 +1399,23 @@ def _csv_aus_abfrage(sql):
     return ("\ufeff" + ausgabe.getvalue()).encode("utf-8")
 
 
-def exportiere_aufgaben_csv():
-    """Exportiert Teilnehmer-, Durchlauf- und Aufgabenergebnisse gemeinsam."""
+def _csv_aus_abfrage(sql, parameter=()):
+    """Erzeugt eine Excel-kompatible UTF-8-CSV aus einer Abfrage."""
+    with db_connection() as (conn, cursor):
+        cursor.execute(sql, parameter)
+        spalten = [spalte[0] for spalte in cursor.description]
+        zeilen = cursor.fetchall()
+    return _csv_aus_zeilen(spalten, zeilen)
+
+
+def exportiere_aufgaben_csv(teilnehmer_code=None):
+    """Exportiert Aufgabenergebnisse optional für einen Teilnehmer."""
+    if teilnehmer_code is not None:
+        _pruefe_teilnehmer_code(teilnehmer_code)
+    filter_sql = "WHERE d.teilnehmer_code = ?" if teilnehmer_code else ""
+    parameter = (teilnehmer_code,) if teilnehmer_code else ()
     return _csv_aus_abfrage(
-        """
+        f"""
         SELECT d.teilnehmer_code, t.altersgruppe, t.berufsbereich,
                t.lager_erfahrung, t.digitale_kenntnisse, t.ki_erfahrung,
                t.vorherige_kenntnis, d.position, d.modus, d.szenario,
@@ -1425,15 +1435,21 @@ def exportiere_aufgaben_csv():
         JOIN evaluation_teilnehmende t
           ON t.teilnehmer_code = d.teilnehmer_code
         LEFT JOIN evaluation_aufgaben a ON a.durchlauf_id = d.id
+        {filter_sql}
         ORDER BY d.teilnehmer_code, d.position, a.id
-        """
+        """,
+        parameter,
     )
 
 
-def exportiere_ereignisse_csv():
-    """Exportiert alle Agenten- und manuellen Ereignisse mit Aufgabenkontext."""
+def exportiere_ereignisse_csv(teilnehmer_code=None):
+    """Exportiert Ereignisse optional für einen Teilnehmer."""
+    if teilnehmer_code is not None:
+        _pruefe_teilnehmer_code(teilnehmer_code)
+    filter_sql = "WHERE d.teilnehmer_code = ?" if teilnehmer_code else ""
+    parameter = (teilnehmer_code,) if teilnehmer_code else ()
     return _csv_aus_abfrage(
-        """
+        f"""
         SELECT d.teilnehmer_code, d.modus, d.szenario, a.aufgabe_code,
                MAX(1, (
                    SELECT COUNT(*) FROM evaluation_ereignisse start
@@ -1450,9 +1466,74 @@ def exportiere_ereignisse_csv():
         FROM evaluation_ereignisse e
         JOIN evaluation_aufgaben a ON a.id = e.aufgabe_id
         JOIN evaluation_durchlaeufe d ON d.id = a.durchlauf_id
+        {filter_sql}
         ORDER BY e.id
-        """
+        """,
+        parameter,
     )
+
+
+def exportiere_teilnehmer_fragebogen_csv(teilnehmer_code):
+    """Exportiert Profil, SUS-Einzelantworten und Abschlussfeedback."""
+    teilnehmer, durchlaeufe, _aufgaben, _ereignisse = _hole_teilnehmerbericht_daten(
+        teilnehmer_code
+    )
+    spalten = [
+        "teilnehmer_code",
+        "einwilligung_am",
+        "altersgruppe",
+        "berufsbereich",
+        "lager_erfahrung",
+        "digitale_kenntnisse",
+        "ki_erfahrung",
+        "vorherige_kenntnis",
+        "position",
+        "modus",
+        "szenario",
+        "status",
+        "gestartet_am",
+        "abgeschlossen_am",
+        "modell_id",
+        *(f"sus_{index}" for index in range(1, 11)),
+        "sus_score",
+        "modus_feedback",
+        "bevorzugter_modus",
+        "abschluss_kommentar",
+        "evaluation_abgeschlossen_am",
+    ]
+    zeilen = []
+    for lauf in durchlaeufe:
+        sus_antworten = _json_loads(lauf["sus_antworten"]) or []
+        sus_werte = [
+            sus_antworten[index] if index < len(sus_antworten) else None
+            for index in range(10)
+        ]
+        zeilen.append(
+            [
+                teilnehmer_code,
+                teilnehmer["einwilligung_am"],
+                teilnehmer["altersgruppe"],
+                teilnehmer["berufsbereich"],
+                teilnehmer["lager_erfahrung"],
+                teilnehmer["digitale_kenntnisse"],
+                teilnehmer["ki_erfahrung"],
+                teilnehmer["vorherige_kenntnis"],
+                lauf["position"],
+                lauf["modus"],
+                lauf["szenario"],
+                lauf["status"],
+                lauf["gestartet_am"],
+                lauf["abgeschlossen_am"],
+                lauf["modell_id"],
+                *sus_werte,
+                lauf["sus_score"],
+                lauf["feedback"],
+                teilnehmer["bevorzugter_modus"],
+                teilnehmer["abschluss_kommentar"],
+                teilnehmer["abgeschlossen_am"],
+            ]
+        )
+    return _csv_aus_zeilen(spalten, zeilen)
 
 
 _BERICHT_LABELS = {
@@ -1589,6 +1670,13 @@ def _bericht_dauer(dauer_ms):
     return f"{dauer_ms / 1000:.1f} s"
 
 
+def _bericht_prozent(zaehler, nenner):
+    """Formatiert eine Quote oder einen Gedankenstrich bei fehlender Basis."""
+    if not nenner:
+        return "–"
+    return f"{zaehler / nenner * 100:.1f} %".replace(".", ",")
+
+
 def _bericht_ausfuehrung(antwort):
     """Reduziert gespeicherte Ergebnisdaten auf die fachlich relevante Ebene."""
     if not isinstance(antwort, dict):
@@ -1611,6 +1699,40 @@ def _markiere_ereignisversuche(ereignisse):
         eintrag["versuch"] = max(1, versuch)
         markiert.append(eintrag)
     return markiert
+
+
+def _aktuelle_versuchsereignisse(aufgabe_id, ereignisse):
+    """Liefert ausschließlich die Ereignisse des jüngsten Aufgabenversuchs."""
+    markiert = _markiere_ereignisversuche(
+        [ereignis for ereignis in ereignisse if ereignis["aufgabe_id"] == aufgabe_id]
+    )
+    aktueller_versuch = max(
+        (ereignis["versuch"] for ereignis in markiert),
+        default=1,
+    )
+    return [
+        ereignis
+        for ereignis in markiert
+        if ereignis["versuch"] == aktueller_versuch
+    ]
+
+
+def _freigabe_kennzahlen(aufgaben, ereignisse):
+    """Berechnet bestätigte und abgelehnte Agentenaufrufe im aktuellen Versuch."""
+    entscheidungen = {}
+    relevante_status = {"akzeptiert", "auto-akzeptiert", "abgelehnt"}
+    for aufgabe in aufgaben:
+        for ereignis in _aktuelle_versuchsereignisse(aufgabe["id"], ereignisse):
+            if ereignis["quelle"] != "Agent" or ereignis["status"] not in relevante_status:
+                continue
+            aufruf_id = ereignis["ereignis_id"] or str(ereignis["id"])
+            entscheidungen[aufruf_id] = ereignis["status"]
+    bestaetigt = sum(
+        status in {"akzeptiert", "auto-akzeptiert"}
+        for status in entscheidungen.values()
+    )
+    abgelehnt = sum(status == "abgelehnt" for status in entscheidungen.values())
+    return bestaetigt, abgelehnt
 
 
 def _hole_teilnehmerbericht_daten(teilnehmer_code):
@@ -1711,7 +1833,21 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
         durchschnitt_ms = (
             sum(dauer_werte) / len(dauer_werte) if dauer_werte else None
         )
+        gesamt_ms = sum(dauer_werte) if dauer_werte else None
         modell = lauf["modell_id"] if lauf["modus"] == "Agent" else None
+        bestaetigt, abgelehnt = _freigabe_kennzahlen(lauf_aufgaben, ereignisse)
+        freigabe_gesamt = bestaetigt + abgelehnt
+        freigabequote = (
+            _bericht_prozent(bestaetigt, freigabe_gesamt)
+            if lauf["modus"] == "Agent"
+            else "–"
+        )
+        freigabe_zeile = (
+            "<p><strong>Freigaben:</strong> "
+            f"{bestaetigt} bestätigt, {abgelehnt} abgelehnt</p>"
+            if lauf["modus"] == "Agent"
+            else ""
+        )
         durchlauf_karten.append(
             f"""
             <article class="run-card">
@@ -1721,11 +1857,15 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
               </div>
               <div class="run-stats">
                 <div><span>Erfüllt</span><strong>{lauf_erfolgreich}/{lauf_beendet}</strong></div>
+                <div><span>Erfolgsquote</span><strong>{_bericht_prozent(lauf_erfolgreich, lauf_beendet)}</strong></div>
+                <div><span>Gesamtzeit</span><strong>{_bericht_dauer(gesamt_ms)}</strong></div>
                 <div><span>Ø Dauer</span><strong>{_bericht_dauer(durchschnitt_ms)}</strong></div>
                 <div><span>SUS</span><strong>{_bericht_wert(lauf['sus_score'])}</strong></div>
+                <div><span>Freigabequote</span><strong>{freigabequote}</strong></div>
               </div>
               <div class="run-context">
                 <p><strong>Modell:</strong> {_bericht_wert(modell)}</p>
+                {freigabe_zeile}
                 <p><strong>Feedback:</strong> {_bericht_wert(lauf['feedback'])}</p>
               </div>
             </article>
@@ -1751,16 +1891,8 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
             if aufgabe["erfolgreich"] == 0
             else "neutral"
         )
-        task_events = _markiere_ereignisversuche(
-            [
-                ereignis
-                for ereignis in ereignisse
-                if ereignis["aufgabe_id"] == aufgabe["id"]
-            ]
-        )
-        aktueller_versuch = max(
-            (ereignis["versuch"] for ereignis in task_events),
-            default=1,
+        aktuelle_ereignisse = _aktuelle_versuchsereignisse(
+            aufgabe["id"], ereignisse
         )
         aufgaben_zeilen.append(
             "<tr>"
@@ -1773,11 +1905,6 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
             "</tr>"
         )
 
-        aktuelle_ereignisse = [
-            ereignis
-            for ereignis in task_events
-            if ereignis["versuch"] == aktueller_versuch
-        ]
         erfasste_ausfuehrung = _bericht_ausfuehrung(aufgabe["antwort"])
         aktions_zeilen = []
         for ereignis in _fachliche_ereignisse(aktuelle_ereignisse):
@@ -1871,11 +1998,12 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
     <div class="metric"><span>Fachlich erfüllt</span><strong>{erfolgreich}/{beendet}</strong></div>
     <div class="metric"><span>Bevorzugter Modus</span><strong>{_bericht_wert(teilnehmer['bevorzugter_modus'])}</strong></div>
   </div>
-  <p class="note">T1 und T2 werden anhand der erfassten Antworten bewertet. Bei T3 bis T5 zählt der tatsächlich erzeugte Datenbankzustand.</p>
+  <p class="note">T1 und T2 werden anhand der erfassten Antworten bewertet. Bei T3 bis T5 zählt der tatsächlich erzeugte Datenbankzustand. Bericht und Kennzahlen berücksichtigen jeweils den aktuellen Aufgabenversuch.</p>
   <h2>Teilnehmerprofil</h2>
   {_bericht_wert(profil)}
   <h2>Modusvergleich</h2>
   <div class="run-grid">{''.join(durchlauf_karten)}</div>
+  <p class="meta">Die Freigabequote entspricht den bestätigten und automatisch bestätigten Agentenaufrufen im Verhältnis zu allen bestätigten und abgelehnten Agentenaufrufen. SUS-Einzelantworten und vollständiger Ereignisverlauf sind im Datenpaket als CSV enthalten.</p>
   <h2>Aufgabenübersicht</h2>
   <table class="overview-table"><thead><tr><th>Code</th><th>Aufgabe</th><th>Modus</th><th>Dauer</th><th>Ergebnis</th><th>Schwierigkeit</th></tr></thead><tbody>{''.join(aufgaben_zeilen)}</tbody></table>
   <h2>Aufgabendetails</h2>
@@ -1886,3 +2014,26 @@ def exportiere_teilnehmerbericht_html(teilnehmer_code):
   <footer>Anonymisierter Export aus der Evaluation des Lager-Agenten. Der Bericht enthält keine API-Schlüssel oder Personennamen.</footer>
 </main></body></html>"""
     return html.encode("utf-8")
+
+
+def exportiere_teilnehmerpaket_zip(teilnehmer_code):
+    """Bündelt Bericht, Messwerte, Fragebogen und Verlauf in einem ZIP-Archiv."""
+    _pruefe_teilnehmer_code(teilnehmer_code)
+    basisname = f"evaluation_{teilnehmer_code}"
+    dateien = {
+        f"{basisname}_abschlussbericht.html": exportiere_teilnehmerbericht_html(
+            teilnehmer_code
+        ),
+        f"{basisname}_aufgaben.csv": exportiere_aufgaben_csv(teilnehmer_code),
+        f"{basisname}_fragebogen.csv": exportiere_teilnehmer_fragebogen_csv(
+            teilnehmer_code
+        ),
+        f"{basisname}_ereignisverlauf.csv": exportiere_ereignisse_csv(
+            teilnehmer_code
+        ),
+    }
+    ausgabe = BytesIO()
+    with ZipFile(ausgabe, mode="w", compression=ZIP_DEFLATED) as archiv:
+        for dateiname, inhalt in dateien.items():
+            archiv.writestr(dateiname, inhalt)
+    return ausgabe.getvalue()

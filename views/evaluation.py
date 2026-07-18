@@ -16,7 +16,7 @@ from services.evaluation import (
     brich_aufgabe_ab,
     exportiere_aufgaben_csv,
     exportiere_ereignisse_csv,
-    exportiere_teilnehmerbericht_html,
+    exportiere_teilnehmerpaket_zip,
     hole_aktive_aufgabe,
     hole_aktuellen_durchlauf,
     hole_aufgabeninfo,
@@ -481,19 +481,19 @@ def _render_datenexport():
 
 
 def _render_teilnehmerbericht_download(teilnehmer_code):
-    """Stellt den lesbaren Einzelbericht nach vollständigem Abschluss bereit."""
+    """Stellt Bericht und Rohdaten nach vollständigem Abschluss bereit."""
     st.download_button(
-        "Teilnehmerbericht herunterladen",
-        data=exportiere_teilnehmerbericht_html(teilnehmer_code),
-        file_name=f"evaluation_{teilnehmer_code}_abschlussbericht.html",
-        mime="text/html",
+        "Evaluationspaket herunterladen",
+        data=exportiere_teilnehmerpaket_zip(teilnehmer_code),
+        file_name=f"evaluation_{teilnehmer_code}_datenpaket.zip",
+        mime="application/zip",
         icon=":material/download:",
         type="primary",
         width="stretch",
     )
     st.caption(
-        "Die Datei bündelt Zeiten, Ergebnisse, Voraussetzungen, Prüfkriterien, "
-        "Feedback und Ereignisprotokolle."
+        "Das ZIP-Archiv enthält den lesbaren HTML-Bericht sowie CSV-Dateien mit "
+        "Aufgabenergebnissen, Fragebogenwerten und vollständigem Ereignisverlauf."
     )
 
 
@@ -572,7 +572,7 @@ def _render_abschluss(teilnehmer_code):
         st.success("Die Evaluation ist vollständig abgeschlossen. Vielen Dank für die Teilnahme.")
         _render_teilnehmerbericht_download(teilnehmer_code)
         st.info(
-            "Bitte senden Sie den heruntergeladenen Teilnehmerbericht an "
+            "Bitte senden Sie das heruntergeladene Evaluationspaket an "
             f"**{STUDIENLEITUNG_EMAIL}**."
         )
         st.link_button(

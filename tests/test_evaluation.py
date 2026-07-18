@@ -3,9 +3,11 @@
 import json
 import sqlite3
 from contextlib import closing
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
+from zipfile import ZipFile
 
 import pytest
 
@@ -19,6 +21,7 @@ from services.evaluation import (
     exportiere_ereignisse_csv,
     exportiere_aufgaben_csv,
     exportiere_teilnehmerbericht_html,
+    exportiere_teilnehmerpaket_zip,
     hole_aktive_aufgabe,
     hole_aktuellen_durchlauf,
     hole_durchlaeufe,
@@ -255,6 +258,61 @@ def test_export_enthaelt_anonyme_aufgabendaten():
     assert "P4" in export
     assert "T1" in export
     assert hole_aktive_aufgabe(aufgabe["id"]) is None
+
+
+def test_teilnehmerpaket_buendelt_bericht_rohdaten_und_sus_einzelwerte():
+    """Der Abschlussdownload enthält ausschließlich auswertbare Teilnehmerdaten."""
+    _registriere("P1")
+    with db_connection(commit=True) as (conn, cursor):
+        cursor.execute(
+            """
+            UPDATE evaluation_durchlaeufe
+            SET sus_antworten = ?, sus_score = ?, feedback = ?
+            WHERE teilnehmer_code = ? AND position = 1
+            """,
+            (json.dumps([1, 2, 3, 4, 5, 1, 2, 3, 4, 5]), 50.0, "Modusfeedback", "P1"),
+        )
+
+    paket = exportiere_teilnehmerpaket_zip("P1")
+    with ZipFile(BytesIO(paket)) as archiv:
+        assert set(archiv.namelist()) == {
+            "evaluation_P1_abschlussbericht.html",
+            "evaluation_P1_aufgaben.csv",
+            "evaluation_P1_fragebogen.csv",
+            "evaluation_P1_ereignisverlauf.csv",
+        }
+        fragebogen = archiv.read("evaluation_P1_fragebogen.csv").decode("utf-8-sig")
+        aufgaben = archiv.read("evaluation_P1_aufgaben.csv").decode("utf-8-sig")
+        bericht = archiv.read("evaluation_P1_abschlussbericht.html").decode("utf-8")
+
+    assert "sus_1;sus_2;sus_3;sus_4;sus_5" in fragebogen
+    assert ";1;2;3;4;5;1;2;3;4;5;50.0;Modusfeedback;" in fragebogen
+    assert "P1" in aufgaben
+    assert "P2" not in aufgaben
+    assert "vollständiger Ereignisverlauf" in bericht
+
+
+def test_bericht_berechnet_freigabequote_aus_aktuellem_agentenversuch(monkeypatch):
+    """Bestätigte und abgelehnte Agentenaufrufe ergeben die ausgewiesene Quote."""
+    _registriere("P2")
+    durchlauf = hole_aktuellen_durchlauf("P2")
+    aufgabe = starte_aufgabe(durchlauf["id"], "T1")
+    fake_st = SimpleNamespace(session_state={"_evaluation_task_id": aufgabe["id"]})
+    monkeypatch.setattr(chat_state, "st", fake_st)
+    chat_state.log_tool_calls(
+        [{"id": "call-ok", "name": "check_lagerbestand", "args": {}}],
+        "akzeptiert",
+    )
+    chat_state.log_tool_calls(
+        [{"id": "call-no", "name": "check_lagerbestand", "args": {}}],
+        "abgelehnt",
+    )
+
+    bericht = exportiere_teilnehmerbericht_html("P2").decode("utf-8")
+
+    assert "Freigabequote" in bericht
+    assert "50,0 %" in bericht
+    assert "1 bestätigt, 1 abgelehnt" in bericht
 
 
 def test_agent_und_manuell_schreiben_in_gemeinsames_evaluationslog(monkeypatch):
